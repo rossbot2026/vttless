@@ -1,4 +1,9 @@
-require('dotenv').config();
+// Load environment variables
+if (process.env.NODE_ENV === 'test') {
+  require('dotenv').config({ path: '.env.test' });
+} else {
+  require('dotenv').config();
+}
 const express = require("express");
 const cors = require("cors")
 const MongoStore = require("connect-mongo");
@@ -49,6 +54,12 @@ app.get("/health", (req, res) => {
     res.status(200).json({ status: "ok", service: "backend" });
 });
 
-app.listen(serverPort, ()=>{
+// Only start server if not in test mode
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(serverPort, ()=>{
     console.log("Server is listening on port " + serverPort);
-})
+  });
+}
+
+// Export the app for testing purposes
+module.exports = app;
