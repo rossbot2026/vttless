@@ -1,34 +1,26 @@
 # VTTless API Endpoints Documentation
 
-This document lists all API endpoints in the VTTless application, their methods, parameters, authentication requirements, and expected responses.
+This document provides comprehensive documentation of all API endpoints in the VTTless application.
 
-## Base URL
-- Development: `http://localhost:3001`
-- Production: Based on deployment environment
-
----
-
-## Health Check
-
-### GET /health
-- **Description**: Health check endpoint
-- **Auth Required**: No
-- **Parameters**: None
-- **Response**:
-  ```json
-  {
-    "status": "ok",
-    "service": "backend"
-  }
-  ```
-
----
+## Table of Contents
+- [Authentication Endpoints](#authentication-endpoints)
+- [User Endpoints](#user-endpoints)  
+- [Campaign Endpoints](#campaign-endpoints)
+- [Friend System Endpoints](#friend-system-endpoints)
+- [Map Endpoints](#map-endpoints)
+- [Character Endpoints](#character-endpoints)
+- [Image Endpoints](#image-endpoints)
+- [Asset Endpoints](#asset-endpoints)
+- [Health Check](#health-check)
 
 ## Authentication Endpoints
 
-### POST /auth/login
+### Base Path: `/auth`
+
+#### POST `/auth/login`
+- **Method**: POST
 - **Description**: Authenticate user and return JWT tokens
-- **Auth Required**: No
+- **Access**: Public
 - **Parameters**:
   ```json
   {
@@ -36,121 +28,175 @@ This document lists all API endpoints in the VTTless application, their methods,
     "password": "string (required)"
   }
   ```
-- **Response 200**:
+- **Auth Requirements**: None
+- **Expected Response**:
   ```json
   {
     "success": true,
-    "token": "jwt-access-token",
-    "refreshToken": "jwt-refresh-token",
+    "token": "JWT access token",
+    "refreshToken": "JWT refresh token",
     "user": {
-      "id": "user-id",
-      "username": "username",
-      "email": "email@example.com"
+      "_id": "string",
+      "username": "string",
+      "email": "string",
+      "roles": ["string"]
     }
   }
   ```
-- **Response 400**: Missing credentials
-- **Response 401**: Invalid credentials
+- **Error Responses**:
+  - 400: Missing credentials
+  - 401: Invalid credentials
 
-### GET /auth/validate
+#### GET `/auth/validate`
+- **Method**: GET
 - **Description**: Validate current JWT token
-- **Auth Required**: Yes (JWT)
+- **Access**: Private (requires valid JWT)
 - **Parameters**: None
-- **Response 200**:
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
   ```json
   {
     "success": true,
-    "user": { /* user object */ }
+    "message": "Token is valid"
   }
   ```
-- **Response 401**: Invalid or expired token
+- **Error Responses**:
+  - 401: Invalid or missing token
 
-### GET /auth/logout
+#### GET `/auth/logout`
+- **Method**: GET
 - **Description**: Logout user and invalidate tokens
-- **Auth Required**: Yes (JWT)
+- **Access**: Private (requires valid JWT)
 - **Parameters**: None
-- **Response 200**:
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
   ```json
   {
     "success": true,
     "message": "Logged out successfully"
   }
   ```
+- **Error Responses**:
+  - 401: Invalid or missing token
 
-### POST /auth/refresh
+#### POST `/auth/refresh`
+- **Method**: POST
 - **Description**: Refresh access token using refresh token
-- **Auth Required**: Yes (Refresh Token)
+- **Access**: Private (requires valid refresh token)
 - **Parameters**:
   ```json
   {
     "refreshToken": "string (required)"
   }
   ```
-- **Response 200**:
+- **Auth Requirements**: None (refresh token in body)
+- **Expected Response**:
   ```json
   {
     "success": true,
-    "token": "new-jwt-access-token"
+    "token": "new JWT access token"
   }
   ```
+- **Error Responses**:
+  - 401: Invalid or missing refresh token
 
-### POST /auth/change-password
+#### POST `/auth/change-password`
+- **Method**: POST
 - **Description**: Change user password with security validation
-- **Auth Required**: Yes (JWT)
+- **Access**: Private (requires valid JWT)
 - **Parameters**:
   ```json
   {
     "currentPassword": "string (required)",
-    "newPassword": "string (required, min 8 chars)"
+    "newPassword": "string (required)"
   }
   ```
-- **Response 200**: Password changed successfully
-- **Response 400**: Missing credentials or weak password
-- **Response 401**: Invalid current password
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "message": "Password changed successfully"
+  }
+  ```
+- **Error Responses**:
+  - 400: Weak password
+  - 401: Invalid current password or token
 
-### POST /auth/forgot-password
+#### POST `/auth/forgot-password`
+- **Method**: POST
 - **Description**: Request password reset link via email
-- **Auth Required**: No
+- **Access**: Public
 - **Parameters**:
   ```json
   {
     "email": "string (required)"
   }
   ```
-- **Response 200**: Email sent (even if email doesn't exist for security)
+- **Auth Requirements**: None
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "message": "Password reset email sent if user exists"
+  }
+  ```
+- **Error Responses**:
+  - 400: Invalid email format
 
-### POST /auth/reset-password
+#### POST `/auth/reset-password`
+- **Method**: POST
 - **Description**: Reset password using reset token
-- **Auth Required**: No
+- **Access**: Public
 - **Parameters**:
   ```json
   {
     "token": "string (required)",
-    "password": "string (required, min 8 chars)"
+    "newPassword": "string (required)"
   }
   ```
-- **Response 200**: Password reset successfully
-- **Response 400**: Invalid or expired token
-
-### GET /auth/me
-- **Description**: Get current authenticated user information
-- **Auth Required**: Yes (JWT)
-- **Parameters**: None
-- **Response 200**:
+- **Auth Requirements**: None
+- **Expected Response**:
   ```json
   {
     "success": true,
-    "user": { /* full user object without password */ }
+    "message": "Password reset successfully"
   }
   ```
+- **Error Responses**:
+  - 400: Invalid token or weak password
 
----
+#### GET `/auth/me`
+- **Method**: GET
+- **Description**: Get current authenticated user information
+- **Access**: Private (requires valid JWT)
+- **Parameters**: None
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "user": {
+      "_id": "string",
+      "username": "string",
+      "email": "string",
+      "roles": ["string"],
+      "createdAt": "date",
+      "updatedAt": "date"
+    }
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
 
 ## User Endpoints
 
-### POST /users/signup
+### Base Path: `/users`
+
+#### POST `/users/signup`
+- **Method**: POST
 - **Description**: Register a new user
-- **Auth Required**: No
+- **Access**: Public
 - **Parameters**:
   ```json
   {
@@ -159,332 +205,1094 @@ This document lists all API endpoints in the VTTless application, their methods,
     "password": "string (required)"
   }
   ```
-- **Response 201**: User created successfully
-- **Response 409**: Username or email already exists
-
----
+- **Auth Requirements**: None
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "user": {
+      "_id": "string",
+      "username": "string",
+      "email": "string",
+      "roles": ["string"]
+    }
+  }
+  ```
+- **Error Responses**:
+  - 400: Missing fields, weak password, duplicate username/email
 
 ## Campaign Endpoints
 
-### GET /campaigns/list
-- **Description**: List all campaigns for authenticated user
-- **Auth Required**: Yes (JWT)
-- **Parameters**: None
-- **Response**: Array of campaigns
+### Base Path: `/campaigns`
 
-### POST /campaigns/add
+#### GET `/campaigns/list`
+- **Method**: GET
+- **Description**: List all campaigns for authenticated user
+- **Access**: Private (requires valid JWT)
+- **Parameters**: None
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "campaigns": [
+      {
+        "_id": "string",
+        "name": "string",
+        "description": "string",
+        "dm": "userId",
+        "players": ["userId"],
+        "createdAt": "date",
+        "updatedAt": "date"
+      }
+    ]
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
+
+#### POST `/campaigns/add`
+- **Method**: POST
 - **Description**: Create a new campaign
-- **Auth Required**: Yes (JWT)
+- **Access**: Private (requires valid JWT)
 - **Parameters**:
   ```json
   {
     "name": "string (required)",
-    "description": "string (optional)"
+    "description": "string",
+    "players": ["userId"]
   }
   ```
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "campaign": {
+      "_id": "string",
+      "name": "string",
+      "description": "string",
+      "dm": "userId",
+      "players": ["userId"],
+      "createdAt": "date",
+      "updatedAt": "date"
+    }
+  }
+  ```
+- **Error Responses**:
+  - 400: Missing name
+  - 401: Invalid or missing token
 
-### POST /campaigns/delete
+#### POST `/campaigns/delete`
+- **Method**: POST
 - **Description**: Delete a campaign
-- **Auth Required**: Yes (JWT)
+- **Access**: Private (requires valid JWT)
 - **Parameters**:
   ```json
   {
     "campaignId": "string (required)"
   }
   ```
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "message": "Campaign deleted successfully"
+  }
+  ```
+- **Error Responses**:
+  - 400: Missing campaignId
+  - 401: Invalid or missing token
+  - 403: User not authorized to delete campaign
 
-### POST /campaigns/update
-- **Description**: Update campaign details
-- **Auth Required**: Yes (JWT)
+#### POST `/campaigns/update`
+- **Method**: POST
+- **Description**: Update a campaign
+- **Access**: Private (requires valid JWT)
 - **Parameters**:
   ```json
   {
     "campaignId": "string (required)",
-    "name": "string (optional)",
-    "description": "string (optional)"
+    "name": "string",
+    "description": "string",
+    "players": ["userId"]
   }
   ```
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "campaign": {
+      "_id": "string",
+      "name": "string",
+      "description": "string",
+      "dm": "userId",
+      "players": ["userId"],
+      "createdAt": "date",
+      "updatedAt": "date"
+    }
+  }
+  ```
+- **Error Responses**:
+  - 400: Missing campaignId
+  - 401: Invalid or missing token
+  - 403: User not authorized to update campaign
 
-### POST /campaigns/join
-- **Description**: Join an existing campaign
-- **Auth Required**: Yes (JWT)
+#### POST `/campaigns/join`
+- **Method**: POST
+- **Description**: Join a campaign
+- **Access**: Private (requires valid JWT)
 - **Parameters**:
   ```json
   {
-    "inviteCode": "string (required)"
+    "campaignId": "string (required)"
   }
   ```
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "message": "Successfully joined campaign"
+  }
+  ```
+- **Error Responses**:
+  - 400: Missing campaignId
+  - 401: Invalid or missing token
+  - 404: Campaign not found
 
-### GET /campaigns/:id
+#### GET `/campaigns/:id`
+- **Method**: GET
 - **Description**: Get campaign details
-- **Auth Required**: Yes (JWT)
-- **URL Parameters**: `id` - Campaign ID
-- **Response**: Campaign object
+- **Access**: Private (requires valid JWT)
+- **Parameters**: None
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "campaign": {
+      "_id": "string",
+      "name": "string",
+      "description": "string",
+      "dm": "userId",
+      "players": ["userId"],
+      "createdAt": "date",
+      "updatedAt": "date"
+    }
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
+  - 404: Campaign not found
 
-### POST /campaigns/:campaignId/maps
+#### POST `/campaigns/:campaignId/maps`
+- **Method**: POST
 - **Description**: Add a map to a campaign
-- **Auth Required**: Yes (JWT)
-- **URL Parameters**: `campaignId` - Campaign ID
-- **Parameters**: Map data
+- **Access**: Private (requires valid JWT)
+- **Parameters**:
+  ```json
+  {
+    "mapId": "string (required)"
+  }
+  ```
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "campaign": {
+      "_id": "string",
+      "name": "string",
+      "maps": ["mapId"]
+    }
+  }
+  ```
+- **Error Responses**:
+  - 400: Missing mapId
+  - 401: Invalid or missing token
+  - 403: User not authorized to modify campaign
+  - 404: Campaign not found
 
----
+## Friend System Endpoints
 
-## Friend Endpoints
+### Base Path: `/friends`
 
-### POST /friends/add
+#### POST `/friends/add`
+- **Method**: POST
 - **Description**: Send a friend request
-- **Auth Required**: Yes (JWT)
+- **Access**: Private (requires valid JWT)
 - **Parameters**:
   ```json
   {
     "friendId": "string (required)"
   }
   ```
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "message": "Friend request sent"
+  }
+  ```
+- **Error Responses**:
+  - 400: Missing friendId
+  - 401: Invalid or missing token
+  - 404: User not found
 
-### GET /friends/list
+#### GET `/friends/list`
+- **Method**: GET
 - **Description**: List all confirmed friends
-- **Auth Required**: Yes (JWT)
+- **Access**: Private (requires valid JWT)
 - **Parameters**: None
-- **Response**: Array of friends
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "friends": [
+      {
+        "_id": "string",
+        "username": "string",
+        "email": "string",
+        "status": "confirmed"
+      }
+    ]
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
 
-### GET /friends/pending
-- **Description**: List pending friend requests
-- **Auth Required**: Yes (JWT)
+#### GET `/friends/pending`
+- **Method**: GET
+- **Description**: List all pending friend requests
+- **Access**: Private (requires valid JWT)
 - **Parameters**: None
-- **Response**: Array of pending requests
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "pending": [
+      {
+        "_id": "string",
+        "username": "string",
+        "email": "string",
+        "status": "pending"
+      }
+    ]
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
 
-### POST /friends/confirm
+#### POST `/friends/confirm`
+- **Method**: POST
 - **Description**: Confirm a friend request
-- **Auth Required**: Yes (JWT)
+- **Access**: Private (requires valid JWT)
 - **Parameters**:
   ```json
   {
     "friendId": "string (required)"
   }
   ```
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "message": "Friend request confirmed"
+  }
+  ```
+- **Error Responses**:
+  - 400: Missing friendId
+  - 401: Invalid or missing token
+  - 404: Friend request not found
 
-### POST /friends/reject
+#### POST `/friends/reject`
+- **Method**: POST
 - **Description**: Reject a friend request
-- **Auth Required**: Yes (JWT)
+- **Access**: Private (requires valid JWT)
 - **Parameters**:
   ```json
   {
     "friendId": "string (required)"
   }
   ```
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "message": "Friend request rejected"
+  }
+  ```
+- **Error Responses**:
+  - 400: Missing friendId
+  - 401: Invalid or missing token
+  - 404: Friend request not found
 
-### POST /friends/remove
+#### POST `/friends/remove`
+- **Method**: POST
 - **Description**: Remove a friend
-- **Auth Required**: Yes (JWT)
+- **Access**: Private (requires valid JWT)
 - **Parameters**:
   ```json
   {
     "friendId": "string (required)"
   }
   ```
-
----
-
-## Character Endpoints
-
-### GET /campaigns/:campaignId/characters
-- **Description**: Get all characters in a campaign
-- **Auth Required**: Yes (JWT)
-- **URL Parameters**: `campaignId` - Campaign ID
-
-### GET /campaigns/:campaignId/characters/user
-- **Description**: Get current user's characters in a campaign
-- **Auth Required**: Yes (JWT)
-- **URL Parameters**: `campaignId` - Campaign ID
-
-### POST /campaigns/:campaignId/characters
-- **Description**: Create a new character in a campaign
-- **Auth Required**: Yes (JWT)
-- **URL Parameters**: `campaignId` - Campaign ID
-
-### PATCH /characters/:characterId
-- **Description**: Update a character
-- **Auth Required**: Yes (JWT)
-- **URL Parameters**: `characterId` - Character ID
-
-### DELETE /characters/:characterId
-- **Description**: Delete a character
-- **Auth Required**: Yes (JWT)
-- **URL Parameters**: `characterId` - Character ID
-
-### POST /characters/:characterId/place/:mapId
-- **Description**: Place a character on a map
-- **Auth Required**: Yes (JWT)
-- **URL Parameters**: 
-  - `characterId` - Character ID
-  - `mapId` - Map ID
-
-### DELETE /characters/:characterId/remove/:mapId
-- **Description**: Remove a character from a map
-- **Auth Required**: Yes (JWT)
-- **URL Parameters**: 
-  - `characterId` - Character ID
-  - `mapId` - Map ID
-
-### PATCH /characters/:characterId/position/:mapId
-- **Description**: Update character position on a map
-- **Auth Required**: Yes (JWT)
-- **URL Parameters**: 
-  - `characterId` - Character ID
-  - `mapId` - Map ID
-
----
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "message": "Friend removed"
+  }
+  ```
+- **Error Responses**:
+  - 400: Missing friendId
+  - 401: Invalid or missing token
+  - 404: Friend not found
 
 ## Map Endpoints
 
-### POST /maps
+### Base Path: `/maps`
+
+#### POST `/maps/`
+- **Method**: POST
 - **Description**: Create a new map
-- **Auth Required**: Yes (JWT)
-- **Parameters**: Map data
+- **Access**: Private (requires valid JWT)
+- **Parameters**:
+  ```json
+  {
+    "name": "string (required)",
+    "description": "string",
+    "campaignId": "string",
+    "gridSize": "number",
+    "backgroundImage": "string"
+  }
+  ```
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "map": {
+      "_id": "string",
+      "name": "string",
+      "description": "string",
+      "owner": "userId",
+      "campaignId": "string",
+      "gridSize": "number",
+      "backgroundImage": "string",
+      "tokens": [],
+      "createdAt": "date",
+      "updatedAt": "date"
+    }
+  }
+  ```
+- **Error Responses**:
+  - 400: Missing name
+  - 401: Invalid or missing token
 
-### GET /maps/:id
+#### GET `/maps/:id`
+- **Method**: GET
 - **Description**: Get map details
-- **Auth Required**: Yes (JWT)
-- **URL Parameters**: `id` - Map ID
+- **Access**: Private (requires valid JWT)
+- **Parameters**: None
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "map": {
+      "_id": "string",
+      "name": "string",
+      "description": "string",
+      "owner": "userId",
+      "campaignId": "string",
+      "gridSize": "number",
+      "backgroundImage": "string",
+      "tokens": [
+        {
+          "_id": "string",
+          "name": "string",
+          "position": {"x": "number", "y": "number"},
+          "size": {"width": "number", "height": "number"},
+          "image": "string",
+          "visible": "boolean"
+        }
+      ],
+      "createdAt": "date",
+      "updatedAt": "date"
+    }
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
+  - 404: Map not found
 
-### PUT /maps/:id
-- **Description**: Update map details
-- **Auth Required**: Yes (JWT)
-- **URL Parameters**: `id` - Map ID
+#### PUT `/maps/:id`
+- **Method**: PUT
+- **Description**: Update map (full replacement)
+- **Access**: Private (requires valid JWT)
+- **Parameters**:
+  ```json
+  {
+    "name": "string",
+    "description": "string",
+    "gridSize": "number",
+    "backgroundImage": "string"
+  }
+  ```
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "map": {
+      "_id": "string",
+      "name": "string",
+      "description": "string",
+      "owner": "userId",
+      "campaignId": "string",
+      "gridSize": "number",
+      "backgroundImage": "string",
+      "tokens": [],
+      "createdAt": "date",
+      "updatedAt": "date"
+    }
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
+  - 403: User not authorized to update map
+  - 404: Map not found
 
-### PATCH /maps/:id
-- **Description**: Partial update of map
-- **Auth Required**: Yes (JWT)
-- **URL Parameters**: `id` - Map ID
-
-### DELETE /maps/:id
+#### DELETE `/maps/:id`
+- **Method**: DELETE
 - **Description**: Delete a map
-- **Auth Required**: Yes (JWT)
-- **URL Parameters**: `id` - Map ID
+- **Access**: Private (requires valid JWT)
+- **Parameters**: None
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "message": "Map deleted successfully"
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
+  - 403: User not authorized to delete map
+  - 404: Map not found
 
-### GET /maps/campaign/:campaignId
+#### PATCH `/maps/:id`
+- **Method**: PATCH
+- **Description**: Update map (partial update)
+- **Access**: Private (requires valid JWT)
+- **Parameters**:
+  ```json
+  {
+    "name": "string",
+    "description": "string",
+    "gridSize": "number",
+    "backgroundImage": "string"
+  }
+  ```
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "map": {
+      "_id": "string",
+      "name": "string",
+      "description": "string",
+      "owner": "userId",
+      "campaignId": "string",
+      "gridSize": "number",
+      "backgroundImage": "string",
+      "tokens": [],
+      "createdAt": "date",
+      "updatedAt": "date"
+    }
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
+  - 403: User not authorized to update map
+  - 404: Map not found
+
+#### GET `/maps/campaign/:campaignId`
+- **Method**: GET
 - **Description**: Get all maps for a campaign
-- **Auth Required**: Yes (JWT)
-- **URL Parameters**: `campaignId` - Campaign ID
+- **Access**: Private (requires valid JWT)
+- **Parameters**: None
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "maps": [
+      {
+        "_id": "string",
+        "name": "string",
+        "description": "string",
+        "owner": "userId",
+        "campaignId": "string",
+        "gridSize": "number",
+        "backgroundImage": "string",
+        "createdAt": "date",
+        "updatedAt": "date"
+      }
+    ]
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
+  - 404: Campaign not found
 
-### PATCH /maps/:id/tokens
+#### PATCH `/maps/:id/tokens`
+- **Method**: PATCH
 - **Description**: Add a token to a map
-- **Auth Required**: Yes (JWT)
-- **URL Parameters**: `id` - Map ID
+- **Access**: Private (requires valid JWT)
+- **Parameters**:
+  ```json
+  {
+    "token": {
+      "name": "string (required)",
+      "position": {"x": "number", "y": "number"},
+      "size": {"width": "number", "height": "number"},
+      "image": "string",
+      "visible": "boolean"
+    }
+  }
+  ```
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "map": {
+      "_id": "string",
+      "tokens": ["token"]
+    }
+  }
+  ```
+- **Error Responses**:
+  - 400: Missing token name
+  - 401: Invalid or missing token
+  - 403: User not authorized to modify map
+  - 404: Map not found
 
-### PATCH /maps/:id/tokens/:tokenId
+#### PATCH `/maps/:id/tokens/:tokenId`
+- **Method**: PATCH
 - **Description**: Update a token on a map
-- **Auth Required**: Yes (JWT)
-- **URL Parameters**: 
-  - `id` - Map ID
-  - `tokenId` - Token ID
+- **Access**: Private (requires valid JWT)
+- **Parameters**:
+  ```json
+  {
+    "position": {"x": "number", "y": "number"},
+    "size": {"width": "number", "height": "number"},
+    "image": "string",
+    "visible": "boolean"
+  }
+  ```
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "map": {
+      "_id": "string",
+      "tokens": ["updated token"]
+    }
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
+  - 403: User not authorized to modify map
+  - 404: Map or token not found
 
-### DELETE /maps/:id/tokens/:tokenId
+#### DELETE `/maps/:id/tokens/:tokenId`
+- **Method**: DELETE
 - **Description**: Delete a token from a map
-- **Auth Required**: Yes (JWT)
-- **URL Parameters**: 
-  - `id` - Map ID
-  - `tokenId` - Token ID
+- **Access**: Private (requires valid JWT)
+- **Parameters**: None
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "message": "Token deleted successfully"
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
+  - 403: User not authorized to modify map
+  - 404: Map or token not found
 
-### POST /maps/analyze
-- **Description**: Analyze a map image (requires multipart/form-data)
-- **Auth Required**: Yes (JWT)
-- **Content-Type**: multipart/form-data
-- **Parameters**: `image` - Image file
+#### POST `/maps/analyze`
+- **Method**: POST
+- **Description**: Analyze a map image
+- **Access**: Private (requires valid JWT)
+- **Parameters**: Form-data with image file
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "analysis": {
+      "gridSize": "number",
+      "dimensions": {"width": "number", "height": "number"},
+      "colorPalette": ["hex colors"]
+    }
+  }
+  ```
+- **Error Responses**:
+  - 400: Invalid image file
+  - 401: Invalid or missing token
 
----
+## Character Endpoints
+
+### Base Path: `/` (root)
+
+#### GET `/campaigns/:campaignId/characters`
+- **Method**: GET
+- **Description**: Get all characters in a campaign
+- **Access**: Private (requires valid JWT)
+- **Parameters**: None
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "characters": [
+      {
+        "_id": "string",
+        "name": "string",
+        "description": "string",
+        "owner": "userId",
+        "campaignId": "string",
+        "stats": {},
+        "position": {"x": "number", "y": "number"},
+        "createdAt": "date",
+        "updatedAt": "date"
+      }
+    ]
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
+  - 404: Campaign not found
+
+#### GET `/campaigns/:campaignId/characters/user`
+- **Method**: GET
+- **Description**: Get current user's characters in a campaign
+- **Access**: Private (requires valid JWT)
+- **Parameters**: None
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "characters": [
+      {
+        "_id": "string",
+        "name": "string",
+        "description": "string",
+        "owner": "userId",
+        "campaignId": "string",
+        "stats": {},
+        "position": {"x": "number", "y": "number"},
+        "createdAt": "date",
+        "updatedAt": "date"
+      }
+    ]
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
+  - 404: Campaign not found
+
+#### POST `/campaigns/:campaignId/characters`
+- **Method**: POST
+- **Description**: Create a new character in a campaign
+- **Access**: Private (requires valid JWT)
+- **Parameters**:
+  ```json
+  {
+    "name": "string (required)",
+    "description": "string",
+    "stats": {},
+    "position": {"x": "number", "y": "number"}
+  }
+  ```
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "character": {
+      "_id": "string",
+      "name": "string",
+      "description": "string",
+      "owner": "userId",
+      "campaignId": "string",
+      "stats": {},
+      "position": {"x": "number", "y": "number"},
+      "createdAt": "date",
+      "updatedAt": "date"
+    }
+  }
+  ```
+- **Error Responses**:
+  - 400: Missing name
+  - 401: Invalid or missing token
+  - 404: Campaign not found
+
+#### PATCH `/characters/:characterId`
+- **Method**: PATCH
+- **Description**: Update a character
+- **Access**: Private (requires valid JWT)
+- **Parameters**:
+  ```json
+  {
+    "name": "string",
+    "description": "string",
+    "stats": {},
+    "position": {"x": "number", "y": "number"}
+  }
+  ```
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "character": {
+      "_id": "string",
+      "name": "string",
+      "description": "string",
+      "owner": "userId",
+      "campaignId": "string",
+      "stats": {},
+      "position": {"x": "number", "y": "number"},
+      "createdAt": "date",
+      "updatedAt": "date"
+    }
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
+  - 403: User not authorized to update character
+  - 404: Character not found
+
+#### DELETE `/characters/:characterId`
+- **Method**: DELETE
+- **Description**: Delete a character
+- **Access**: Private (requires valid JWT)
+- **Parameters**: None
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "message": "Character deleted successfully"
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
+  - 403: User not authorized to delete character
+  - 404: Character not found
+
+#### POST `/characters/:characterId/place/:mapId`
+- **Method**: POST
+- **Description**: Place character on a map
+- **Access**: Private (requires valid JWT)
+- **Parameters**:
+  ```json
+  {
+    "position": {"x": "number", "y": "number"}
+  }
+  ```
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "character": {
+      "_id": "string",
+      "position": {"x": "number", "y": "number"},
+      "currentMap": "mapId"
+    }
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
+  - 403: User not authorized to modify character
+  - 404: Character or map not found
+
+#### DELETE `/characters/:characterId/remove/:mapId`
+- **Method**: DELETE
+- **Description**: Remove character from a map
+- **Access**: Private (requires valid JWT)
+- **Parameters**: None
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "message": "Character removed from map"
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
+  - 403: User not authorized to modify character
+  - 404: Character or map not found
+
+#### PATCH `/characters/:characterId/position/:mapId`
+- **Method**: PATCH
+- **Description**: Update character position on a map
+- **Access**: Private (requires valid JWT)
+- **Parameters**:
+  ```json
+  {
+    "position": {"x": "number", "y": "number"}
+  }
+  ```
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "character": {
+      "_id": "string",
+      "position": {"x": "number", "y": "number"}
+    }
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
+  - 403: User not authorized to modify character
+  - 404: Character or map not found
 
 ## Image Endpoints
 
-### GET /images/profile-photo-upload
-- **Description**: Get presigned URL for profile photo upload
-- **Auth Required**: Yes (JWT)
-- **Response**: Upload URL
+### Base Path: `/images`
 
-### POST /images/update-profile-photo
+#### GET `/images/profile-photo-upload`
+- **Method**: GET
+- **Description**: Get URL for profile photo upload
+- **Access**: Private (requires valid JWT)
+- **Parameters**: None
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "uploadUrl": "string",
+    "fileName": "string"
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
+
+#### POST `/images/update-profile-photo`
+- **Method**: POST
 - **Description**: Update user's profile photo
-- **Auth Required**: Yes (JWT)
-- **Parameters**: Photo data
+- **Access**: Private (requires valid JWT)
+- **Parameters**:
+  ```json
+  {
+    "fileName": "string (required)",
+    "fileType": "string (required)"
+  }
+  ```
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "user": {
+      "_id": "string",
+      "profilePhoto": "string"
+    }
+  }
+  ```
+- **Error Responses**:
+  - 400: Missing parameters
+  - 401: Invalid or missing token
 
-### GET /images/profile-photo-download-url
-- **Description**: Get presigned URL for profile photo download
-- **Auth Required**: Yes (JWT)
-- **Response**: Download URL
-
----
+#### GET `/images/profile-photo-download-url`
+- **Method**: GET
+- **Description**: Get URL for profile photo download
+- **Access**: Private (requires valid JWT)
+- **Parameters**: None
+- **Auth Requirements**: Bearer token in Authorization header
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "downloadUrl": "string"
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid or missing token
+  - 404: No profile photo found
 
 ## Asset Endpoints
 
-### POST /assets/upload-url
-- **Description**: Get presigned URL for asset upload
-- **Auth Required**: Yes (simpleAuth middleware)
-- **Parameters**: Asset metadata
+### Base Path: `/assets`
 
-### POST /assets/confirm-upload
-- **Description**: Confirm asset upload completion
-- **Auth Required**: Yes (simpleAuth middleware)
-- **Parameters**: Upload confirmation data
+#### POST `/assets/upload-url`
+- **Method**: POST
+- **Description**: Get URL for asset upload
+- **Access**: Private (requires simple auth)
+- **Parameters**:
+  ```json
+  {
+    "fileName": "string (required)",
+    "fileType": "string (required)",
+    "campaignId": "string (required)"
+  }
+  ```
+- **Auth Requirements**: Simple authentication
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "uploadUrl": "string",
+    "assetId": "string"
+  }
+  ```
+- **Error Responses**:
+  - 400: Missing parameters
+  - 401: Invalid authentication
 
-### GET /assets/campaign/:campaignId
+#### POST `/assets/confirm-upload`
+- **Method**: POST
+- **Description**: Confirm asset upload
+- **Access**: Private (requires simple auth)
+- **Parameters**:
+  ```json
+  {
+    "assetId": "string (required)",
+    "fileName": "string (required)",
+    "fileType": "string (required)",
+    "campaignId": "string (required)"
+  }
+  ```
+- **Auth Requirements**: Simple authentication
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "asset": {
+      "_id": "string",
+      "fileName": "string",
+      "fileType": "string",
+      "campaignId": "string",
+      "url": "string",
+      "createdAt": "date"
+    }
+  }
+  ```
+- **Error Responses**:
+  - 400: Missing parameters
+  - 401: Invalid authentication
+
+#### GET `/assets/campaign/:campaignId`
+- **Method**: GET
 - **Description**: Get all assets for a campaign
-- **Auth Required**: Yes (simpleAuth middleware)
-- **URL Parameters**: `campaignId` - Campaign ID
+- **Access**: Private (requires simple auth)
+- **Parameters**: None
+- **Auth Requirements**: Simple authentication
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "assets": [
+      {
+        "_id": "string",
+        "fileName": "string",
+        "fileType": "string",
+        "campaignId": "string",
+        "url": "string",
+        "createdAt": "date"
+      }
+    ]
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid authentication
+  - 404: Campaign not found
 
-### GET /assets/download/:id
+#### GET `/assets/download/:id`
+- **Method**: GET
 - **Description**: Get download URL for an asset
-- **Auth Required**: Yes (simpleAuth middleware)
-- **URL Parameters**: `id` - Asset ID
+- **Access**: Private (requires simple auth)
+- **Parameters**: None
+- **Auth Requirements**: Simple authentication
+- **Expected Response**:
+  ```json
+  {
+    "success": true,
+    "downloadUrl": "string"
+  }
+  ```
+- **Error Responses**:
+  - 401: Invalid authentication
+  - 404: Asset not found
 
----
+## Health Check
 
-## API Endpoints (Alternative Route)
+### GET `/health`
+- **Method**: GET
+- **Description**: Health check endpoint
+- **Access**: Public
+- **Parameters**: None
+- **Auth Requirements**: None
+- **Expected Response**:
+  ```json
+  {
+    "status": "ok",
+    "service": "backend"
+  }
+  ```
+- **Error Responses**: None expected
 
-### POST /api/forgot-password
-- **Description**: Handle forgot password request
-- **Auth Required**: No
-- **Parameters**: Email
+## API Routes (Frontend)
 
-### POST /api/reset-password
-- **Description**: Handle password reset request
-- **Auth Required**: No
-- **Parameters**: Token and new password
+### Base Path: `/api`
 
----
+#### POST `/api/forgot-password`
+- **Method**: POST
+- **Description**: Handle forgot password request (frontend API route)
+- **Access**: Public
+- **Parameters**:
+  ```json
+  {
+    "email": "string (required)"
+  }
+  ```
+- **Auth Requirements**: None
+- **Expected Response**: Same as `/auth/forgot-password`
 
-## Authentication Notes
-
-### JWT Authentication
-Most endpoints require JWT authentication. Include the token in one of these ways:
-1. **Cookie**: `vttless-access` cookie
-2. **Authorization Header**: `Bearer <token>`
-
-### Token Types
-- **Access Token**: Short-lived (1 hour by default), used for API access
-- **Refresh Token**: Long-lived (7 days by default), used to obtain new access tokens
-
-### Error Responses
-All endpoints may return these error responses:
-- **401 Unauthorized**: Missing or invalid token
-- **403 Forbidden**: Valid token but insufficient permissions
-- **500 Internal Server Error**: Server error
-
----
-
-## Response Format
-
-### Success Response
-```json
-{
-  "success": true,
-  "data": { /* response data */ }
-}
-```
-
-### Error Response
-```json
-{
-  "success": false,
-  "message": "Error description",
-  "code": "ERROR_CODE"
-}
-```
+#### POST `/api/reset-password`
+- **Method**: POST
+- **Description**: Handle password reset request (frontend API route)
+- **Access**: Public
+- **Parameters**:
+  ```json
+  {
+    "token": "string (required)",
+    "newPassword": "string (required)"
+  }
+  ```
+- **Auth Requirements**: None
+- **Expected Response**: Same as `/auth/reset-password`
