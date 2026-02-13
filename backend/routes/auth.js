@@ -53,6 +53,22 @@ router.post('/refresh', authenticateRefreshToken, Auth.refreshToken);
 router.post('/change-password', authenticateJWT, validatePassword, Auth.changePassword);
 
 /**
+ * @route   POST /auth/forgot-password
+ * @desc    Request password reset link via email
+ * @access  Public
+ * @rate    Limited to 3 attempts per hour per email
+ */
+router.post('/forgot-password', Auth.forgotPassword);
+
+/**
+ * @route   POST /auth/reset-password
+ * @desc    Reset password using reset token
+ * @access  Public
+ * @rate    Limited to 3 attempts per hour per token
+ */
+router.post('/reset-password', Auth.resetPassword);
+
+/**
  * @route   GET /auth/me
  * @desc    Get current authenticated user information
  * @access  Private (requires valid JWT)

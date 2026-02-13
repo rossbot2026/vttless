@@ -18,6 +18,7 @@ const cookieExtractor = function(req) {
 };
 
 // JWT Configuration
+console.log('JWT_SECRET_KEY:', process.env.JWT_SECRET_KEY);
 const jwtOptions = {
   jwtFromRequest: cookieExtractor,
   secretOrKey: process.env.JWT_SECRET_KEY || process.env.TEST_JWT_SECRET_KEY,

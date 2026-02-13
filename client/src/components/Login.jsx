@@ -137,8 +137,11 @@ const Login = () => {
                     </Stack>
                     <HStack justify="space-between">
                         <Checkbox defaultChecked>Remember me</Checkbox>
-                        <Button variant="text" size="sm">
-                        Forgot password?
+                        <Button 
+                            variant="text" 
+                            size="sm"
+                            onClick={() => navigate('/password-reset')}>
+                            Forgot password?
                         </Button>
                     </HStack>
                     <Stack spacing="6">

@@ -18,7 +18,7 @@ app.get("/health", (req, res) => {
 });
 
 
-const serverPort = 4001;
+const serverPort = process.env.PORT || 4001;
 
 io.on("connection", (socket) => {
   console.log("a user connected:", socket.id);

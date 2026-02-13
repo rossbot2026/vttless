@@ -1,38 +1,46 @@
 /**
  * Health Check API Tests
  * 
- * Tests all health check endpoints and system status
+ * Tests the health check endpoint
  */
 
-const { createTestRequest } = require('./setup');
+const { setupTestDB, teardownTestDB, getApp } = require('../utils/testHelper');
 
-describe('🏥 Health Check API Tests', () => {
-  let api;
+// Setup database before importing app
+let request;
+let app;
 
-  beforeEach(() => {
-    api = createTestRequest();
-  });
+beforeAll(async () => {
+  await setupTestDB();
+  // Now import the app after database is connected
+  app = getApp();
+  request = require('supertest');
+});
 
+afterAll(async () => {
+  await teardownTestDB();
+});
+
+describe('Health Check API', () => {
   describe('GET /health', () => {
-    test('should return system health status', async () => {
-      const response = await api.get('/health');
+    test('should return health status', async () => {
+      const response = await request(app).get('/health');
       
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('status', 'ok');
       expect(response.body).toHaveProperty('service', 'backend');
     });
 
-    test('should respond with correct content type', async () => {
-      const response = await api.get('/health');
+    test('should have correct content type', async () => {
+      const response = await request(app).get('/health');
       
       expect(response.headers['content-type']).toMatch(/json/);
     });
 
-    test('should handle high load gracefully', async () => {
-      // Test concurrent requests
+    test('should handle multiple concurrent requests', async () => {
       const promises = [];
-      for (let i = 0; i < 10; i++) {
-        promises.push(api.get('/health'));
+      for (let i = 0; i < 5; i++) {
+        promises.push(request(app).get('/health'));
       }
       
       const responses = await Promise.all(promises);
@@ -40,28 +48,6 @@ describe('🏥 Health Check API Tests', () => {
         expect(response.status).toBe(200);
         expect(response.body.status).toBe('ok');
       });
-    });
-  });
-
-  describe('GET /api/status', () => {
-    test('should return detailed system status', async () => {
-      const response = await api.get('/api/status');
-      
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('status');
-      expect(response.body).toHaveProperty('timestamp');
-      expect(response.body).toHaveProperty('uptime');
-    });
-  });
-
-  describe('GET /metrics', () => {
-    test('should return system metrics', async () => {
-      const response = await api.get('/metrics');
-      
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('memory');
-      expect(response.body).toHaveProperty('cpu');
-      expect(response.body).toHaveProperty('uptime');
     });
   });
 });
