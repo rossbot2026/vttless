@@ -217,13 +217,16 @@ describe('Authentication API', () => {
       const response = await request(app)
         .post('/auth/change-password')
         .set('Authorization', `Bearer ${authToken}`)
-        .send({ currentPassword: testUser.password, newPassword: 'NewSecurePass123!' });
+        .send({ currentPassword: testUser.password, newPassword: 'NewSecurePass123!@#$' });
       
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('success', true);
 
+      // Small delay to ensure password change is saved
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       // Verify new password works
-      const loginResponse = await request(app).post('/auth/login').send({ email: testUser.email, password: 'NewSecurePass123!' });
+      const loginResponse = await request(app).post('/auth/login').send({ email: testUser.email, password: 'NewSecurePass123!@#$' });
       expect(loginResponse.status).toBe(200);
     });
 
