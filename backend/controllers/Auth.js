@@ -136,12 +136,12 @@ exports.refreshToken = async (req, res) => {
         // Verify refresh token
         const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET_KEY);
         
-        // Generate new access token
-        const token = jwt.sign(
-            { userId: decoded.userId, email: decoded.email },
-            process.env.JWT_SECRET_KEY,
-            { expiresIn: process.env.JWT_EXPIRATION_MS || '1h' }
-        );
+        // Generate new access token using jwtSecurity module
+        const token = generateAccessToken({
+            userId: decoded.userId,
+            username: decoded.username,
+            email: decoded.email
+        });
         
         res.json({
             success: true,
