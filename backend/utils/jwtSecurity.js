@@ -48,7 +48,6 @@ const generateAccessToken = (payload) => {
     issuer: jwtConfig.issuer,
     audience: jwtConfig.audience,
     notBefore: jwtConfig.notBefore,
-    jwtid: tokenPayload.jti,
   });
 };
 
@@ -70,7 +69,6 @@ const generateRefreshToken = (payload) => {
     issuer: jwtConfig.issuer,
     audience: jwtConfig.audience,
     notBefore: jwtConfig.notBefore,
-    jwtid: tokenPayload.jti,
   });
 };
 
@@ -221,6 +219,11 @@ const extractTokenFromRequest = (req) => {
   // Then try cookie
   if (req.cookies && req.cookies['vttless-jwt']) {
     return req.cookies['vttless-jwt'];
+  }
+
+  // Check request body for refresh token (for /auth/refresh endpoint)
+  if (req.body && req.body.refreshToken) {
+    return req.body.refreshToken;
   }
 
   // Finally try query parameter (less secure, only for specific endpoints)

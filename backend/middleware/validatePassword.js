@@ -2,16 +2,17 @@ const passwordValidator = require('../utils/passwordValidator');
 
 const validatePasswordMiddleware = async (req, res, next) => {
     try {
-        const { password, email, username } = req.body;
+        const { password, newPassword, email, username } = req.body;
+        const passwordToValidate = password || newPassword;
 
-        if (!password) {
+        if (!passwordToValidate) {
             return res.status(400).json({
                 success: false,
                 message: 'Password is required'
             });
         }
 
-        const validation = await passwordValidator.validate(password, email, username);
+        const validation = await passwordValidator.validate(passwordToValidate, email, username);
 
         if (!validation.isValid) {
             return res.status(400).json({

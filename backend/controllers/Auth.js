@@ -7,6 +7,7 @@ const User = require('../models/user');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const { generateAccessToken, generateRefreshToken } = require('../utils/jwtSecurity');
 
 /**
  * Login user and return JWT tokens
@@ -44,18 +45,18 @@ exports.login = async (req, res) => {
             });
         }
         
-        // Generate tokens
-        const token = jwt.sign(
-            { userId: user._id, username: user.username, email: user.email },
-            process.env.JWT_SECRET_KEY,
-            { expiresIn: process.env.JWT_EXPIRATION_MS || '1h' }
-        );
+        // Generate tokens using jwtSecurity module for proper claims
+        const token = generateAccessToken({
+            userId: user._id.toString(),
+            username: user.username,
+            email: user.email
+        });
         
-        const refreshToken = jwt.sign(
-            { userId: user._id, username: user.username, email: user.email },
-            process.env.JWT_REFRESH_SECRET_KEY,
-            { expiresIn: process.env.JWT_REFRESH_EXPIRATION_MS || '7d' }
-        );
+        const refreshToken = generateRefreshToken({
+            userId: user._id.toString(),
+            username: user.username,
+            email: user.email
+        });
         
         res.json({
             success: true,
@@ -163,7 +164,7 @@ exports.refreshToken = async (req, res) => {
 exports.changePassword = async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
-        const userId = req.user.userId;
+        const userId = req.user._id || req.user.id;
         
         if (!currentPassword || !newPassword) {
             return res.status(400).json({
