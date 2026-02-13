@@ -1,23 +1,36 @@
 /**
  * Campaign API Tests
- * 
+ *
  * Tests all campaign endpoints
  */
 
 const request = require('supertest');
-const app = require('../../backend/index');
-const User = require('../../backend/models/user');
-const Campaign = require('../../backend/models/campaign');
+const { setupTestDB, teardownTestDB, getApp, getModel } = require('../utils/testHelper');
+
+let app;
+let User;
+let Campaign;
 
 describe('Campaign API', () => {
   let authToken;
-  let userId;
+  let userId; 
   
   const testUser = {
     username: 'testuser',
     email: 'test@example.com',
     password: 'TestPassword123!'
   };
+
+  beforeAll(async () => {
+    await setupTestDB();
+    app = getApp();
+    User = getModel('user');
+    Campaign = getModel('campaign');
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
 
   beforeEach(async () => {
     // Clean up
@@ -41,13 +54,13 @@ describe('Campaign API', () => {
       const response = await request(app)
         .get('/campaigns/list')
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(response.status).toBe(200);
     });
 
     test('should reject request without token', async () => {
       const response = await request(app).get('/campaigns/list');
-      
+
       expect(response.status).toBe(401);
     });
   });
@@ -63,7 +76,7 @@ describe('Campaign API', () => {
         .post('/campaigns/add')
         .set('Authorization', `Bearer ${authToken}`)
         .send(campaignData);
-      
+
       expect(response.status).toBe(201);
       expect(response.body).toHaveProperty('campaign');
     });
@@ -72,7 +85,7 @@ describe('Campaign API', () => {
       const response = await request(app)
         .post('/campaigns/add')
         .send({ name: 'Test Campaign' });
-      
+
       expect(response.status).toBe(401);
     });
 
@@ -81,7 +94,7 @@ describe('Campaign API', () => {
         .post('/campaigns/add')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ description: 'No name' });
-      
+
       expect(response.status).toBe(400);
     });
   });
@@ -95,7 +108,7 @@ describe('Campaign API', () => {
         .post('/campaigns/add')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ name: 'Original Campaign' });
-      
+
       // Get the campaign ID from the database
       const campaign = await Campaign.findOne({ name: 'Original Campaign' });
       campaignId = campaign ? campaign._id.toString() : null;
@@ -116,7 +129,7 @@ describe('Campaign API', () => {
         .post('/campaigns/update')
         .set('Authorization', `Bearer ${authToken}`)
         .send(updateData);
-      
+
       expect(response.status).toBe(200);
     });
 
@@ -124,7 +137,7 @@ describe('Campaign API', () => {
       const response = await request(app)
         .post('/campaigns/update')
         .send({ campaignId: campaignId, name: 'Updated' });
-      
+
       expect(response.status).toBe(401);
     });
   });
@@ -138,7 +151,7 @@ describe('Campaign API', () => {
         .post('/campaigns/add')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ name: 'Campaign To Delete' });
-      
+
       // Get the campaign ID from the database
       const campaign = await Campaign.findOne({ name: 'Campaign To Delete' });
       campaignId = campaign ? campaign._id.toString() : null;
@@ -154,7 +167,7 @@ describe('Campaign API', () => {
         .post('/campaigns/delete')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ campaignId: campaignId });
-      
+
       expect(response.status).toBe(200);
     });
 
@@ -162,7 +175,7 @@ describe('Campaign API', () => {
       const response = await request(app)
         .post('/campaigns/delete')
         .send({ campaignId: campaignId });
-      
+
       expect(response.status).toBe(401);
     });
   });
@@ -172,7 +185,7 @@ describe('Campaign API', () => {
       const response = await request(app)
         .post('/campaigns/join')
         .send({ inviteCode: 'SOME-CODE' });
-      
+
       expect(response.status).toBe(401);
     });
   });
@@ -186,7 +199,7 @@ describe('Campaign API', () => {
         .post('/campaigns/add')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ name: 'Test Campaign' });
-      
+
       // Get the campaign ID from the database
       const campaign = await Campaign.findOne({ name: 'Test Campaign' });
       campaignId = campaign ? campaign._id.toString() : null;
@@ -201,7 +214,7 @@ describe('Campaign API', () => {
       const response = await request(app)
         .get(`/campaigns/${campaignId}`)
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(response.status).toBe(200);
     });
 
@@ -212,7 +225,7 @@ describe('Campaign API', () => {
       }
 
       const response = await request(app).get(`/campaigns/${campaignId}`);
-      
+
       expect(response.status).toBe(401);
     });
 
@@ -220,7 +233,7 @@ describe('Campaign API', () => {
       const response = await request(app)
         .get('/campaigns/nonexistentid123')
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(response.status).toBe(404);
     });
   });
@@ -234,7 +247,7 @@ describe('Campaign API', () => {
         .post('/campaigns/add')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ name: 'Campaign With Maps' });
-      
+
       // Get the campaign ID from the database
       const campaign = await Campaign.findOne({ name: 'Campaign With Maps' });
       campaignId = campaign ? campaign._id.toString() : null;
@@ -256,7 +269,7 @@ describe('Campaign API', () => {
         .post(`/campaigns/${campaignId}/maps`)
         .set('Authorization', `Bearer ${authToken}`)
         .send(mapData);
-      
+
       expect(response.status).toBe(201);
     });
 
@@ -269,7 +282,7 @@ describe('Campaign API', () => {
       const response = await request(app)
         .post(`/campaigns/${campaignId}/maps`)
         .send({ name: 'Test Map' });
-      
+
       expect(response.status).toBe(401);
     });
   });

@@ -1,26 +1,40 @@
 /**
  * Maps API Tests
- * 
+ *
  * Tests all map management endpoints
  */
 
 const request = require('supertest');
-const app = require('../../backend/index');
-const User = require('../../backend/models/user');
-const Campaign = require('../../backend/models/campaign');
-const Map = require('../../backend/models/map');
+const { setupTestDB, teardownTestDB, getApp, getModel } = require('../utils/testHelper');
+
+let app;
+let User;
+let Campaign;
+let Map;
 
 describe('Maps API', () => {
   let authToken;
-  let userId;
+  let userId; 
   let campaignId;
-  let mapId;
+  let mapId; 
   
   const testUser = {
     username: 'testuser',
     email: 'test@example.com',
     password: 'TestPassword123!'
   };
+
+  beforeAll(async () => {
+    await setupTestDB();
+    app = getApp();
+    User = getModel('user');
+    Campaign = getModel('campaign');
+    Map = getModel('map');
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
 
   beforeEach(async () => {
     // Clean up
@@ -52,14 +66,14 @@ describe('Maps API', () => {
       const response = await request(app)
         .get('/maps')
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(response.status).toBe(200);
       expect(Array.isArray(response.body)).toBeTruthy();
     });
 
     test('should reject request without token', async () => {
       const response = await request(app).get('/maps');
-      
+
       expect(response.status).toBe(401);
     });
   });
@@ -73,12 +87,12 @@ describe('Maps API', () => {
         gridHeight: 20,
         gridSize: 40
       };
-      
+
       const response = await request(app)
         .post('/maps')
         .set('Authorization', `Bearer ${authToken}`)
         .send(mapData);
-      
+
       expect(response.status).toBe(201);
       expect(response.body).toHaveProperty('name', mapData.name);
       expect(response.body).toHaveProperty('campaign', campaignId);
@@ -89,7 +103,7 @@ describe('Maps API', () => {
       const response = await request(app)
         .post('/maps')
         .send({ name: 'Test Map', campaign: campaignId });
-      
+
       expect(response.status).toBe(401);
     });
 
@@ -98,7 +112,7 @@ describe('Maps API', () => {
         .post('/maps')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ name: 'Test Map' });
-      
+
       expect(response.status).toBe(400);
     });
 
@@ -106,13 +120,13 @@ describe('Maps API', () => {
       const response = await request(app)
         .post('/maps')
         .set('Authorization', `Bearer ${authToken}`)
-        .send({ 
+        .send({
           name: 'Test Map',
           campaign: 'invalid-campaign-id',
           gridWidth: 20,
           gridHeight: 20
         });
-      
+
       expect(response.status).toBe(404);
     });
   });
@@ -127,7 +141,7 @@ describe('Maps API', () => {
         gridHeight: 20,
         gridSize: 40
       };
-      
+
       const response = await request(app)
         .post('/maps')
         .set('Authorization', `Bearer ${authToken}`)
@@ -140,12 +154,12 @@ describe('Maps API', () => {
         name: 'Updated Map Name',
         gridWidth: 30
       };
-      
+
       const response = await request(app)
         .put(`/maps/${mapId}`)
         .set('Authorization', `Bearer ${authToken}`)
         .send(updateData);
-      
+
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('name', updateData.name);
       expect(response.body).toHaveProperty('gridWidth', updateData.gridWidth);
@@ -155,7 +169,7 @@ describe('Maps API', () => {
       const response = await request(app)
         .put(`/maps/${mapId}`)
         .send({ name: 'Updated Map' });
-      
+
       expect(response.status).toBe(401);
     });
 
@@ -165,7 +179,7 @@ describe('Maps API', () => {
         .put(`/maps/${fakeId}`)
         .set('Authorization', `Bearer ${authToken}`)
         .send({ name: 'Updated Map' });
-      
+
       expect(response.status).toBe(404);
     });
 
@@ -174,7 +188,7 @@ describe('Maps API', () => {
         .put('/maps/invalid-id-format')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ name: 'Updated Map' });
-      
+
       expect(response.status).toBe(400);
     });
   });
@@ -189,7 +203,7 @@ describe('Maps API', () => {
         gridHeight: 20,
         gridSize: 40
       };
-      
+
       await request(app)
         .post('/maps')
         .set('Authorization', `Bearer ${authToken}`)
@@ -200,7 +214,7 @@ describe('Maps API', () => {
       const response = await request(app)
         .get(`/maps/campaign/${campaignId}`)
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(response.status).toBe(200);
       expect(Array.isArray(response.body)).toBeTruthy();
       expect(response.body.length).toBeGreaterThan(0);
@@ -208,7 +222,7 @@ describe('Maps API', () => {
 
     test('should reject request without token', async () => {
       const response = await request(app).get(`/maps/campaign/${campaignId}`);
-      
+
       expect(response.status).toBe(401);
     });
 
@@ -217,7 +231,7 @@ describe('Maps API', () => {
       const response = await request(app)
         .get(`/maps/campaign/${fakeId}`)
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(response.status).toBe(404);
     });
 
@@ -225,7 +239,7 @@ describe('Maps API', () => {
       const response = await request(app)
         .get('/maps/campaign/invalid-id-format')
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(response.status).toBe(400);
     });
   });
@@ -240,7 +254,7 @@ describe('Maps API', () => {
         gridHeight: 20,
         gridSize: 40
       };
-      
+
       const response = await request(app)
         .post('/maps')
         .set('Authorization', `Bearer ${authToken}`)
@@ -252,9 +266,9 @@ describe('Maps API', () => {
       const response = await request(app)
         .delete(`/maps/${mapId}`)
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(response.status).toBe(200);
-      
+
       // Verify map is actually deleted
       const deletedMap = await Map.findById(mapId);
       expect(deletedMap).toBeNull();
@@ -263,7 +277,7 @@ describe('Maps API', () => {
     test('should reject delete without token', async () => {
       const response = await request(app)
         .delete(`/maps/${mapId}`);
-      
+
       expect(response.status).toBe(401);
     });
 
@@ -272,7 +286,7 @@ describe('Maps API', () => {
       const response = await request(app)
         .delete(`/maps/${fakeId}`)
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(response.status).toBe(404);
     });
 
@@ -280,7 +294,7 @@ describe('Maps API', () => {
       const response = await request(app)
         .delete('/maps/invalid-id-format')
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(response.status).toBe(400);
     });
   });

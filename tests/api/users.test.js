@@ -1,22 +1,34 @@
 /**
  * Users API Tests
- * 
+ *
  * Tests user management endpoints that actually exist
  */
 
 const request = require('supertest');
-const app = require('../../backend/index');
-const User = require('../../backend/models/user');
+const { setupTestDB, teardownTestDB, getApp, getModel } = require('../utils/testHelper');
+
+let app;
+let User;
 
 describe('Users API', () => {
   let authToken;
-  let userId;
+  let userId; 
   
   const testUser = {
     username: 'testuser',
     email: 'test@example.com',
     password: 'TestPassword123!'
   };
+
+  beforeAll(async () => {
+    await setupTestDB();
+    app = getApp();
+    User = getModel('user');
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
 
   beforeEach(async () => {
     // Clean up
@@ -39,7 +51,7 @@ describe('Users API', () => {
       const response = await request(app)
         .get('/auth/me')
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('success', true);
       expect(response.body).toHaveProperty('user');
@@ -50,7 +62,7 @@ describe('Users API', () => {
 
     test('should reject request without token', async () => {
       const response = await request(app).get('/auth/me');
-      
+
       expect(response.status).toBe(401);
     });
 
@@ -58,7 +70,7 @@ describe('Users API', () => {
       const response = await request(app)
         .get('/auth/me')
         .set('Authorization', 'Bearer invalid-token');
-      
+
       expect(response.status).toBe(401);
     });
   });
@@ -70,7 +82,7 @@ describe('Users API', () => {
         email: 'new@example.com',
         password: 'NewPassword123!'
       };
-      
+
       const response = await request(app).post('/users/signup').send(newUser);
       expect(response.status).toBe(201);
       expect(response.body).toHaveProperty('message', 'User registered successfully');
@@ -92,7 +104,7 @@ describe('Users API', () => {
     });
 
     test('should reject missing required fields', async () => {
-      const response = await request(app).post('/users/signup').send({ 
+      const response = await request(app).post('/users/signup').send({
         username: 'testuser',
         email: 'test@example.com'
         // missing password

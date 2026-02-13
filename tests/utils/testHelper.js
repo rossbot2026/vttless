@@ -15,9 +15,9 @@ process.env.JWT_REFRESH_SECRET_KEY = process.env.TEST_JWT_REFRESH_SECRET_KEY || 
 
 const { MongoMemoryServer } = require('mongodb-memory-server');
 
-let mongoServer;
 let isSetupComplete = false;
 let mongoose;
+let mongod;
 
 /**
  * Clear all module require caches related to backend and mongoose
@@ -48,16 +48,24 @@ async function setupTestDB() {
   // Get fresh mongoose instance
   mongoose = require('mongoose');
 
-  // Create in-memory MongoDB server
-  mongoServer = await MongoMemoryServer.create();
-  const mongoUri = mongoServer.getUri();
-  
-  // Connect to the in-memory database
-  await mongoose.connect(mongoUri);
-  
-  console.log('Test database connected to:', mongoUri);
-  console.log('Mongoose connection state:', mongoose.connection.readyState);
-  isSetupComplete = true;
+  try {
+    // Start in-memory MongoDB server
+    mongod = await MongoMemoryServer.create();
+    const mongoUri = mongod.getUri();
+    
+    // Set the MONGO_URI environment variable so backend can use it
+    process.env.MONGO_URI = mongoUri;
+    
+    // Connect to the in-memory database
+    await mongoose.connect(mongoUri);
+    
+    console.log('Test database connected to:', mongoUri);
+    console.log('Mongoose connection state:', mongoose.connection.readyState);
+    isSetupComplete = true;
+  } catch (error) {
+    console.error('Failed to connect to test database:', error.message);
+    throw error;
+  }
 }
 
 /**
@@ -85,11 +93,15 @@ async function clearCollections() {
  * Teardown the test database
  */
 async function teardownTestDB() {
-  if (mongoServer) {
+  if (mongoose && mongoose.connection.readyState === 1) {
     await mongoose.disconnect();
-    await mongoServer.stop();
     console.log('Test database disconnected');
     isSetupComplete = false;
+  }
+  
+  if (mongod) {
+    await mongod.stop();
+    console.log('In-memory MongoDB server stopped');
   }
 }
 

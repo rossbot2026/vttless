@@ -1,28 +1,43 @@
 /**
  * Characters API Tests
- * 
+ *
  * Tests all character management endpoints
  */
 
 const request = require('supertest');
-const app = require('../../backend/index');
-const User = require('../../backend/models/user');
-const Campaign = require('../../backend/models/campaign');
-const Character = require('../../backend/models/character');
-const Asset = require('../../backend/models/asset');
+const { setupTestDB, teardownTestDB, getApp, getModel } = require('../utils/testHelper');
+
+let app;
+let User;
+let Campaign;
+let Character;
+let Asset;
 
 describe('Characters API', () => {
   let authToken;
-  let userId;
+  let userId; 
   let campaignId;
   let characterId;
-  let assetId;
+  let assetId; 
   
   const testUser = {
     username: 'testuser',
     email: 'test@example.com',
     password: 'TestPassword123!'
   };
+
+  beforeAll(async () => {
+    await setupTestDB();
+    app = getApp();
+    User = getModel('user');
+    Campaign = getModel('campaign');
+    Character = getModel('character');
+    Asset = getModel('asset');
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
 
   beforeEach(async () => {
     // Clean up
@@ -66,14 +81,14 @@ describe('Characters API', () => {
       const response = await request(app)
         .get(`/campaigns/${campaignId}/characters`)
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(response.status).toBe(200);
       expect(Array.isArray(response.body)).toBeTruthy();
     });
 
     test('should reject request without token', async () => {
       const response = await request(app).get(`/campaigns/${campaignId}/characters`);
-      
+
       expect(response.status).toBe(401);
     });
 
@@ -82,7 +97,7 @@ describe('Characters API', () => {
       const response = await request(app)
         .get(`/campaigns/${fakeId}/characters`)
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(response.status).toBe(404);
     });
 
@@ -90,7 +105,7 @@ describe('Characters API', () => {
       const response = await request(app)
         .get('/campaigns/invalid-id-format/characters')
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(response.status).toBe(400);
     });
   });
@@ -105,12 +120,12 @@ describe('Characters API', () => {
         maxHitPoints: 10,
         armorClass: 15
       };
-      
+
       const response = await request(app)
         .post(`/campaigns/${campaignId}/characters`)
         .set('Authorization', `Bearer ${authToken}`)
         .send(characterData);
-      
+
       expect(response.status).toBe(201);
       expect(response.body).toHaveProperty('name', characterData.name);
       expect(response.body).toHaveProperty('assetId', assetId);
@@ -121,7 +136,7 @@ describe('Characters API', () => {
       const response = await request(app)
         .post(`/campaigns/${campaignId}/characters`)
         .send({ name: 'Test Character', assetId: assetId });
-      
+
       expect(response.status).toBe(401);
     });
 
@@ -130,7 +145,7 @@ describe('Characters API', () => {
         .post(`/campaigns/${campaignId}/characters`)
         .set('Authorization', `Bearer ${authToken}`)
         .send({ name: 'Test Character' });
-      
+
       expect(response.status).toBe(400);
     });
 
@@ -140,7 +155,7 @@ describe('Characters API', () => {
         .post(`/campaigns/${fakeId}/characters`)
         .set('Authorization', `Bearer ${authToken}`)
         .send({ name: 'Test Character', assetId: assetId });
-      
+
       expect(response.status).toBe(404);
     });
 
@@ -149,7 +164,7 @@ describe('Characters API', () => {
         .post('/campaigns/invalid-id-format/characters')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ name: 'Test Character', assetId: assetId });
-      
+
       expect(response.status).toBe(400);
     });
   });
@@ -165,7 +180,7 @@ describe('Characters API', () => {
         maxHitPoints: 10,
         armorClass: 15
       };
-      
+
       const response = await request(app)
         .post(`/campaigns/${campaignId}/characters`)
         .set('Authorization', `Bearer ${authToken}`)
@@ -179,12 +194,12 @@ describe('Characters API', () => {
         level: 2,
         hitPoints: 15
       };
-      
+
       const response = await request(app)
         .patch(`/characters/${characterId}`)
         .set('Authorization', `Bearer ${authToken}`)
         .send(updateData);
-      
+
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('name', updateData.name);
       expect(response.body).toHaveProperty('level', updateData.level);
@@ -195,7 +210,7 @@ describe('Characters API', () => {
       const response = await request(app)
         .patch(`/characters/${characterId}`)
         .send({ name: 'Updated Character' });
-      
+
       expect(response.status).toBe(401);
     });
 
@@ -205,7 +220,7 @@ describe('Characters API', () => {
         .patch(`/characters/${fakeId}`)
         .set('Authorization', `Bearer ${authToken}`)
         .send({ name: 'Updated Character' });
-      
+
       expect(response.status).toBe(404);
     });
 
@@ -214,7 +229,7 @@ describe('Characters API', () => {
         .patch('/characters/invalid-id-format')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ name: 'Updated Character' });
-      
+
       expect(response.status).toBe(400);
     });
 
@@ -225,7 +240,7 @@ describe('Characters API', () => {
         email: 'other@example.com',
         password: 'OtherPassword123!'
       };
-      
+
       await request(app).post('/users/signup').send(otherUser);
       const otherLoginResponse = await request(app)
         .post('/auth/login')
@@ -234,12 +249,12 @@ describe('Characters API', () => {
           password: otherUser.password
         });
       const otherToken = otherLoginResponse.body.token;
-      
+
       const response = await request(app)
         .patch(`/characters/${characterId}`)
         .set('Authorization', `Bearer ${otherToken}`)
         .send({ name: 'Trying to hack' });
-      
+
       expect(response.status).toBe(403);
     });
   });
@@ -255,7 +270,7 @@ describe('Characters API', () => {
         maxHitPoints: 10,
         armorClass: 15
       };
-      
+
       const response = await request(app)
         .post(`/campaigns/${campaignId}/characters`)
         .set('Authorization', `Bearer ${authToken}`)
@@ -267,9 +282,9 @@ describe('Characters API', () => {
       const response = await request(app)
         .delete(`/characters/${characterId}`)
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(response.status).toBe(200);
-      
+
       // Verify character is actually deleted
       const deletedCharacter = await Character.findById(characterId);
       expect(deletedCharacter).toBeNull();
@@ -278,7 +293,7 @@ describe('Characters API', () => {
     test('should reject delete without token', async () => {
       const response = await request(app)
         .delete(`/characters/${characterId}`);
-      
+
       expect(response.status).toBe(401);
     });
 
@@ -287,7 +302,7 @@ describe('Characters API', () => {
       const response = await request(app)
         .delete(`/characters/${fakeId}`)
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(response.status).toBe(404);
     });
 
@@ -295,7 +310,7 @@ describe('Characters API', () => {
       const response = await request(app)
         .delete('/characters/invalid-id-format')
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(response.status).toBe(400);
     });
 
@@ -306,7 +321,7 @@ describe('Characters API', () => {
         email: 'other@example.com',
         password: 'OtherPassword123!'
       };
-      
+
       await request(app).post('/users/signup').send(otherUser);
       const otherLoginResponse = await request(app)
         .post('/auth/login')
@@ -315,11 +330,11 @@ describe('Characters API', () => {
           password: otherUser.password
         });
       const otherToken = otherLoginResponse.body.token;
-      
+
       const response = await request(app)
         .delete(`/characters/${characterId}`)
         .set('Authorization', `Bearer ${otherToken}`);
-      
+
       expect(response.status).toBe(403);
     });
   });

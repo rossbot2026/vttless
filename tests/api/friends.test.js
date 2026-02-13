@@ -1,19 +1,21 @@
 /**
  * Friend System API Tests
- * 
+ *
  * Tests all friend system endpoints
  */
 
 const request = require('supertest');
-const app = require('../../backend/index');
-const User = require('../../backend/models/user');
-const Friend = require('../../backend/models/friend');
+const { setupTestDB, teardownTestDB, getApp, getModel } = require('../utils/testHelper');
+
+let app;
+let User;
+let Friend;
 
 describe('Friend System API', () => {
   let authToken;
-  let userId;
+  let userId; 
   let friendUserId;
-  let friendAuthToken;
+  let friendAuthToken; 
   
   const testUser = {
     username: 'testuser',
@@ -26,6 +28,17 @@ describe('Friend System API', () => {
     email: 'friend@example.com',
     password: 'FriendPassword123!'
   };
+
+  beforeAll(async () => {
+    await setupTestDB();
+    app = getApp();
+    User = getModel('user');
+    Friend = getModel('friend');
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
 
   beforeEach(async () => {
     // Clean up
@@ -61,7 +74,7 @@ describe('Friend System API', () => {
         .post('/friends/add')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ friendId: friendUserId });
-      
+
       expect(response.status).toBe(201);
     });
 
@@ -69,7 +82,7 @@ describe('Friend System API', () => {
       const response = await request(app)
         .post('/friends/add')
         .send({ friendId: friendUserId });
-      
+
       expect(response.status).toBe(401);
     });
 
@@ -78,7 +91,7 @@ describe('Friend System API', () => {
         .post('/friends/add')
         .set('Authorization', `Bearer ${authToken}`)
         .send({});
-      
+
       expect(response.status).toBe(400);
     });
 
@@ -87,7 +100,7 @@ describe('Friend System API', () => {
         .post('/friends/add')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ friendId: 'invalid-id' });
-      
+
       expect(response.status).toBe(404);
     });
 
@@ -97,13 +110,13 @@ describe('Friend System API', () => {
         .post('/friends/add')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ friendId: friendUserId });
-      
+
       // Try to send again
       const response = await request(app)
         .post('/friends/add')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ friendId: friendUserId });
-      
+
       expect(response.status).toBe(409);
     });
   });
@@ -113,13 +126,13 @@ describe('Friend System API', () => {
       const response = await request(app)
         .get('/friends/list')
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(response.status).toBe(200);
     });
 
     test('should reject request without token', async () => {
       const response = await request(app).get('/friends/list');
-      
+
       expect(response.status).toBe(401);
     });
   });
@@ -129,13 +142,13 @@ describe('Friend System API', () => {
       const response = await request(app)
         .get('/friends/pending')
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(response.status).toBe(200);
     });
 
     test('should reject request without token', async () => {
       const response = await request(app).get('/friends/pending');
-      
+
       expect(response.status).toBe(401);
     });
   });
@@ -154,7 +167,7 @@ describe('Friend System API', () => {
         .post('/friends/confirm')
         .set('Authorization', `Bearer ${friendAuthToken}`)
         .send({ friendId: userId });
-      
+
       expect(response.status).toBe(200);
     });
 
@@ -162,7 +175,7 @@ describe('Friend System API', () => {
       const response = await request(app)
         .post('/friends/confirm')
         .send({ friendId: userId });
-      
+
       expect(response.status).toBe(401);
     });
 
@@ -171,7 +184,7 @@ describe('Friend System API', () => {
         .post('/friends/confirm')
         .set('Authorization', `Bearer ${friendAuthToken}`)
         .send({ friendId: 'invalid-id' });
-      
+
       expect(response.status).toBe(404);
     });
   });
@@ -190,7 +203,7 @@ describe('Friend System API', () => {
         .post('/friends/reject')
         .set('Authorization', `Bearer ${friendAuthToken}`)
         .send({ friendId: userId });
-      
+
       expect(response.status).toBe(200);
     });
 
@@ -198,7 +211,7 @@ describe('Friend System API', () => {
       const response = await request(app)
         .post('/friends/reject')
         .send({ friendId: userId });
-      
+
       expect(response.status).toBe(401);
     });
   });
@@ -210,7 +223,7 @@ describe('Friend System API', () => {
         .post('/friends/add')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ friendId: friendUserId });
-      
+
       // Confirm the friend request
       await request(app)
         .post('/friends/confirm')
@@ -223,7 +236,7 @@ describe('Friend System API', () => {
         .post('/friends/remove')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ friendId: friendUserId });
-      
+
       expect(response.status).toBe(200);
     });
 
@@ -231,7 +244,7 @@ describe('Friend System API', () => {
       const response = await request(app)
         .post('/friends/remove')
         .send({ friendId: friendUserId });
-      
+
       expect(response.status).toBe(401);
     });
 
@@ -240,7 +253,7 @@ describe('Friend System API', () => {
         .post('/friends/remove')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ friendId: 'invalid-id' });
-      
+
       expect(response.status).toBe(404);
     });
   });
@@ -252,37 +265,37 @@ describe('Friend System API', () => {
         .post('/friends/add')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ friendId: friendUserId });
-      
+
       expect(addResponse.status).toBe(201);
-      
+
       // 2. Check pending requests as friend
       const pendingResponse = await request(app)
         .get('/friends/pending')
         .set('Authorization', `Bearer ${friendAuthToken}`);
-      
+
       expect(pendingResponse.status).toBe(200);
-      
+
       // 3. Confirm friend request
       const confirmResponse = await request(app)
         .post('/friends/confirm')
         .set('Authorization', `Bearer ${friendAuthToken}`)
         .send({ friendId: userId });
-      
+
       expect(confirmResponse.status).toBe(200);
-      
+
       // 4. Check friends list
       const friendsResponse = await request(app)
         .get('/friends/list')
         .set('Authorization', `Bearer ${authToken}`);
-      
+
       expect(friendsResponse.status).toBe(200);
-      
+
       // 5. Remove friend
       const removeResponse = await request(app)
         .post('/friends/remove')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ friendId: friendUserId });
-      
+
       expect(removeResponse.status).toBe(200);
     });
   });

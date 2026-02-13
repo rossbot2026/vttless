@@ -2,34 +2,25 @@
  * Authentication API Tests
  */
 
-const { MongoMemoryServer } = require('mongodb-memory-server');
+const { setupTestDB, teardownTestDB, getApp, getModel, getMongoose } = require('../utils/testHelper');
 
-let mongoServer;
-let mongoose;
 let app;
 let request;
 let User;
+let mongoose;
 
 beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  const mongoUri = mongoServer.getUri();
-  
-  process.env.NODE_ENV = 'test';
-  process.env.MONGO_URI = mongoUri;
-  process.env.JWT_SECRET_KEY = 'test-jwt-secret-key';
-  process.env.JWT_REFRESH_SECRET_KEY = 'test-jwt-refresh-secret-key';
-  
-  app = require('../../backend/index');
+  await setupTestDB();
+  app = getApp();
   request = require('supertest');
-  mongoose = require('mongoose');
-  User = require('../../backend/models/user');
+  mongoose = getMongoose();
+  User = getModel('user');
   
   await new Promise(resolve => setTimeout(resolve, 100));
 });
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
+  await teardownTestDB();
 });
 
 beforeEach(async () => {

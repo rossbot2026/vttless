@@ -202,11 +202,8 @@ exports.changePassword = async (req, res) => {
             });
         }
         
-        // Hash new password
-        const newPasswordHash = await bcrypt.hash(newPassword, 10);
-        
-        // Update password
-        user.password = newPasswordHash;
+        // Set the new password (plain text) - the pre-save hook will hash it
+        user.password = newPassword;
         await user.save();
         
         res.json({
@@ -280,6 +277,18 @@ The VTTless Team</p>
         
         // Send email using Resend
         try {
+            // Check if we're in test environment or if Resend API key is missing
+            if (process.env.NODE_ENV === 'test' || !process.env.RESEND_API_KEY) {
+                console.log(`[TEST MODE] Password reset email would be sent to ${email}`);
+                console.log(`[TEST MODE] Reset URL: ${resetUrl}`);
+                
+                return res.status(200).json({
+                    success: true,
+                    message: 'If an account exists with this email, a password reset link has been sent',
+                    code: 'EMAIL_SENT'
+                });
+            }
+            
             const { Resend } = require('resend');
             const resend = new Resend(process.env.RESEND_API_KEY);
             
