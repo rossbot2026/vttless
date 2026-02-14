@@ -1,0 +1,59 @@
+# Railway.toml Configuration
+# https://docs.railway.app/deploy/config-as-code
+
+# ==========================================
+# Backend Service Configuration
+# ==========================================
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.backend"
+
+[deploy]
+startCommand = "npm start"
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[environments.production]
+numReplicas = 1
+
+[environments.production.deploy]
+startCommand = "npm start"
+healthcheckPath = "/health"
+
+# ==========================================
+# Environment Variables (set in Railway dashboard)
+# ==========================================
+# The following environment variables should be configured
+# in the Railway dashboard for each service:
+#
+# Backend Service (vttless-backend):
+#   - MONGODB_URI (MongoDB connection string)
+#   - JWT_SECRET_KEY
+#   - JWT_REFRESH_SECRET_KEY
+#   - JWT_ISSUER
+#   - JWT_AUDIENCE
+#   - JWT_EXPIRATION_MS
+#   - JWT_REFRESH_EXPIRATION_MS
+#   - AWS_ACCESS_KEY_ID
+#   - AWS_SECRET_ACCESS_KEY
+#   - AWS_REGION
+#   - S3_BUCKET_NAME
+#   - GOOGLE_CLIENT_ID (optional)
+#   - GOOGLE_CLIENT_SECRET (optional)
+#   - FACEBOOK_APP_ID (optional)
+#   - FACEBOOK_APP_SECRET (optional)
+#   - GITHUB_CLIENT_ID (optional)
+#   - GITHUB_CLIENT_SECRET (optional)
+#   - CLIENT_URL (frontend URL)
+#   - NODE_ENV=production
+#
+# Client Service (vttless-client):
+#   - REACT_APP_BACKEND_BASE_URL
+#   - REACT_APP_SOCKET_URL
+#
+# EventServer Service (vttless-eventserver):
+#   - PORT
+#   - CLIENT_URL
+#   - NODE_ENV=production
