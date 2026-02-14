@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from 'react-hook-form';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import AuthService from '../providers/AuthService';
 import {useAuth} from '../providers/AuthProvider';
 import Logo from './Logo';
@@ -27,11 +27,21 @@ import {
 
 const PasswordReset = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [isResetMode, setIsResetMode] = useState(false);
     const [resetToken, setResetToken] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const toast = useToast();
+
+    // Check for token in URL on component mount
+    useEffect(() => {
+        const token = searchParams.get('token');
+        if (token) {
+            setResetToken(token);
+            setIsResetMode(true);
+        }
+    }, [searchParams]);
 
     const {
         register,
