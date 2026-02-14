@@ -12,7 +12,7 @@ import Play from "../components/Play.jsx";
 import Profile from "../components/Profile";
 import PasswordReset from "../components/PasswordReset.jsx";
 
-const Routes = () ={
+const Routes = () => {
     const { user } = useAuth();
     const routesForPublic = [
         {
