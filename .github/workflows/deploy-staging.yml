@@ -40,13 +40,11 @@ jobs:
 
   deploy-staging:
     runs-on: ubuntu-latest
+    container: ghcr.io/railwayapp/cli:latest
     needs: [test, build-and-test-docker]
     if: github.ref == 'refs/heads/staging'
     steps:
     - uses: actions/checkout@v4
-    
-    - name: Install Railway CLI
-      run: npm install -g @railway/cli
     
     - name: Deploy Backend to Railway
       run: railway up --service vttless-backend

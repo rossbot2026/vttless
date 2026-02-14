@@ -76,15 +76,13 @@ jobs:
   # ==========================================
   deploy-backend:
     runs-on: ubuntu-latest
+    container: ghcr.io/railwayapp/cli:latest
     needs: [test, build]
     if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push'
     environment:
       name: production-backend
     steps:
     - uses: actions/checkout@v4
-    
-    - name: Install Railway CLI
-      run: npm install -g @railway/cli
     
     - name: Deploy Backend to Railway
       run: railway up --service vttless-backend
@@ -93,15 +91,13 @@ jobs:
 
   deploy-client:
     runs-on: ubuntu-latest
+    container: ghcr.io/railwayapp/cli:latest
     needs: [test, build, deploy-backend]
     if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push'
     environment:
       name: production-client
     steps:
     - uses: actions/checkout@v4
-    
-    - name: Install Railway CLI
-      run: npm install -g @railway/cli
     
     - name: Deploy Client to Railway
       run: railway up --service vttless-client
@@ -110,15 +106,13 @@ jobs:
 
   deploy-eventserver:
     runs-on: ubuntu-latest
+    container: ghcr.io/railwayapp/cli:latest
     needs: [test, build, deploy-backend]
     if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push'
     environment:
       name: production-eventserver
     steps:
     - uses: actions/checkout@v4
-    
-    - name: Install Railway CLI
-      run: npm install -g @railway/cli
     
     - name: Deploy EventServer to Railway
       run: railway up --service vttless-eventserver
