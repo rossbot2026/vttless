@@ -1,6 +1,7 @@
 // backend/controllers/Map.js
 const { Map, Campaign } = require("../models");
 const { analyzeMapImage } = require("../services/mapAnalyzer");
+const mongoose = require('mongoose');
 
 exports.createMap = async (req, res) => {
     try {
@@ -18,6 +19,11 @@ exports.createMap = async (req, res) => {
                     ...((!campaign) && { campaign: 'Campaign ID is required' })
                 }
             });
+        }
+
+        // Validate campaign ID format
+        if (!mongoose.Types.ObjectId.isValid(campaign)) {
+            return res.status(404).json({ message: "Campaign not found" });
         }
 
         // Verify campaign exists and user has permission
@@ -60,6 +66,11 @@ exports.createMap = async (req, res) => {
 
 exports.getMap = async (req, res) => {
     try {
+        // Validate map ID format
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ message: "Invalid map ID format" });
+        }
+
         const map = await Map.findById(req.params.id)
             .populate({
                 path: 'characterInstances.characterId',
@@ -97,6 +108,11 @@ exports.getMap = async (req, res) => {
 
 exports.updateMap = async (req, res) => {
     try {
+        // Validate map ID format
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ message: "Invalid map ID format" });
+        }
+
         const map = await Map.findById(req.params.id);
         if (!map) {
             return res.status(404).json({ message: "Map not found" });
@@ -128,6 +144,11 @@ exports.updateMap = async (req, res) => {
 
 exports.deleteMap = async (req, res) => {
     try {
+        // Validate map ID format
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ message: "Invalid map ID format" });
+        }
+
         const map = await Map.findById(req.params.id);
         if (!map) {
             return res.status(404).json({ message: "Map not found" });
@@ -155,6 +176,11 @@ exports.deleteMap = async (req, res) => {
 
 exports.getCampaignMaps = async (req, res) => {
     try {
+        // Validate campaign ID format
+        if (!mongoose.Types.ObjectId.isValid(req.params.campaignId)) {
+            return res.status(400).json({ message: "Invalid campaign ID format" });
+        }
+
         const campaign = await Campaign.findById(req.params.campaignId);
         if (!campaign) {
             return res.status(404).json({ message: "Campaign not found" });
@@ -328,6 +354,32 @@ exports.deleteToken = async (req, res) => {
         res.json({ message: "Token deleted successfully" });
     } catch (error) {
         console.error("Error deleting token:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+// Get all maps for authenticated user
+exports.getAllMaps = async (req, res) => {
+    try {
+        // Find all campaigns where user is either GM or player
+        const campaigns = await Campaign.find({
+            $or: [
+                { gm: req.user._id },
+                { players: req.user._id }
+            ]
+        });
+
+        if (!campaigns || campaigns.length === 0) {
+            return res.json([]); // Return empty array if user has no campaigns
+        }
+
+        // Get all maps from these campaigns
+        const campaignIds = campaigns.map(campaign => campaign._id);
+        const maps = await Map.find({ campaign: { $in: campaignIds } });
+
+        res.json(maps);
+    } catch (error) {
+        console.error("Error fetching maps:", error);
         res.status(500).json({ message: "Internal server error" });
     }
 };

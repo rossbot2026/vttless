@@ -21,7 +21,7 @@ describe('Maps API', () => {
   const testUser = {
     username: 'testuser',
     email: 'test@example.com',
-    password: 'TestPassword123!'
+    password: 'SecurePassword123!'
   };
 
   beforeAll(async () => {
@@ -58,7 +58,7 @@ describe('Maps API', () => {
       .post('/campaigns/add')
       .set('Authorization', `Bearer ${authToken}`)
       .send({ name: 'Test Campaign', description: 'A test campaign' });
-    campaignId = campaignResponse.body._id;
+    campaignId = campaignResponse.body.campaign._id;
   });
 
   describe('GET /maps', () => {
@@ -296,6 +296,141 @@ describe('Maps API', () => {
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(400);
+    });
+  });
+
+  describe('GET /maps/:id', () => {
+    beforeEach(async () => {
+      // Create a map first
+      const mapData = {
+        name: 'Test Map for GET',
+        campaign: campaignId,
+        gridWidth: 20,
+        gridHeight: 20,
+        gridSize: 40
+      };
+
+      const response = await request(app)
+        .post('/maps')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(mapData);
+      mapId = response.body._id;
+    });
+
+    test('should get map details when authenticated', async () => {
+      const response = await request(app)
+        .get(`/maps/${mapId}`)
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('name', 'Test Map for GET');
+      expect(response.body).toHaveProperty('_id', mapId);
+    });
+
+    test('should reject request without token', async () => {
+      const response = await request(app)
+        .get(`/maps/${mapId}`);
+
+      expect(response.status).toBe(401);
+    });
+
+    test('should return 404 for non-existent map', async () => {
+      const fakeId = '507f1f77bcf86cd799439011';
+      const response = await request(app)
+        .get(`/maps/${fakeId}`)
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(404);
+    });
+
+    test('should reject invalid map ID format', async () => {
+      const response = await request(app)
+        .get('/maps/invalid-id-format')
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(400);
+    });
+  });
+
+  describe('PATCH /maps/:id/tokens', () => {
+    beforeEach(async () => {
+      // Create a map first
+      const mapData = {
+        name: 'Map with Tokens',
+        campaign: campaignId,
+        gridWidth: 20,
+        gridHeight: 20,
+        gridSize: 40
+      };
+
+      const response = await request(app)
+        .post('/maps')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(mapData);
+      mapId = response.body._id;
+    });
+
+    test('should add token to map when authenticated', async () => {
+      const tokenData = {
+        token: {
+          id: 'token-1',
+          assetId: '507f1f77bcf86cd799439011',
+          x: 100,
+          y: 100,
+          width: 50,
+          height: 50,
+          ownerId: userId,
+          name: 'Test Token'
+        }
+      };
+
+      const response = await request(app)
+        .patch(`/maps/${mapId}/tokens`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(tokenData);
+
+      expect(response.status).toBe(201);
+      expect(response.body).toHaveProperty('message', 'Token added successfully');
+    });
+
+    test('should reject request without token data', async () => {
+      const response = await request(app)
+        .patch(`/maps/${mapId}/tokens`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({});
+
+      expect(response.status).toBe(400);
+    });
+
+    test('should reject request without token', async () => {
+      const response = await request(app)
+        .patch(`/maps/${mapId}/tokens`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ token: { id: 'test' } });
+
+      // Should fail due to missing required fields
+      expect(response.status).toBe(400);
+    });
+
+    test('should reject request without auth token', async () => {
+      const tokenData = {
+        token: {
+          id: 'token-1',
+          assetId: '507f1f77bcf86cd799439011',
+          x: 100,
+          y: 100,
+          width: 50,
+          height: 50,
+          ownerId: userId,
+          name: 'Test Token'
+        }
+      };
+
+      const response = await request(app)
+        .patch(`/maps/${mapId}/tokens`)
+        .send(tokenData);
+
+      expect(response.status).toBe(401);
     });
   });
 });

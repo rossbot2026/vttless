@@ -23,7 +23,7 @@ describe('Characters API', () => {
   const testUser = {
     username: 'testuser',
     email: 'test@example.com',
-    password: 'TestPassword123!'
+    password: 'SecurePassword123!'
   };
 
   beforeAll(async () => {
@@ -62,18 +62,19 @@ describe('Characters API', () => {
       .post('/campaigns/add')
       .set('Authorization', `Bearer ${authToken}`)
       .send({ name: 'Test Campaign', description: 'A test campaign' });
-    campaignId = campaignResponse.body._id;
+    campaignId = campaignResponse.body.campaign._id;
     
-    // Create an asset for character
-    const assetResponse = await request(app)
-      .post('/assets/upload')
-      .set('Authorization', `Bearer ${authToken}`)
-      .field('name', 'Test Asset')
-      .field('type', 'token')
-      .field('campaign', campaignId)
-      .attach('file', Buffer.from('test'), 'test.png');
-    
-    assetId = assetResponse.body.asset._id;
+    // Create an asset for character (simplified for testing)
+    const asset = new Asset({
+      name: 'Test Asset',
+      type: 'token',
+      key: 'test/test.png',
+      campaign: campaignId,
+      uploadedBy: userId,
+      status: 'active'
+    });
+    await asset.save();
+    assetId = asset._id;
   });
 
   describe('GET /campaigns/:campaignId/characters', () => {
@@ -128,7 +129,7 @@ describe('Characters API', () => {
 
       expect(response.status).toBe(201);
       expect(response.body).toHaveProperty('name', characterData.name);
-      expect(response.body).toHaveProperty('assetId', assetId);
+      expect(response.body.assetId.toString()).toBe(assetId.toString());
       characterId = response.body._id;
     });
 
@@ -238,7 +239,7 @@ describe('Characters API', () => {
       const otherUser = {
         username: 'otheruser',
         email: 'other@example.com',
-        password: 'OtherPassword123!'
+        password: 'DifferentPassword123!'
       };
 
       await request(app).post('/users/signup').send(otherUser);
@@ -319,7 +320,7 @@ describe('Characters API', () => {
       const otherUser = {
         username: 'otheruser',
         email: 'other@example.com',
-        password: 'OtherPassword123!'
+        password: 'DifferentPassword123!'
       };
 
       await request(app).post('/users/signup').send(otherUser);

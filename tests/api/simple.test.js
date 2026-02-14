@@ -2,8 +2,22 @@
  * Simple API Test to verify test infrastructure
  */
 
-const request = require('supertest');
-const app = require('../../backend/index');
+const { setupTestDB, teardownTestDB, getApp } = require('../utils/testHelper');
+
+// Setup database before importing app
+let request;
+let app;
+
+beforeAll(async () => {
+  await setupTestDB();
+  // Now import the app after database is connected
+  app = getApp();
+  request = require('supertest');
+});
+
+afterAll(async () => {
+  await teardownTestDB();
+});
 
 describe('Simple API Test', () => {
   test('should return 404 for non-existent route', async () => {

@@ -2,7 +2,19 @@
  * Test to verify JWT security module can be imported
  */
 
-const jwtSecurity = require('backend/utils/jwtSecurity.js');
+const { setupTestDB, teardownTestDB } = require('../utils/testHelper');
+
+let jwtSecurity;
+
+beforeAll(async () => {
+  await setupTestDB();
+  // Import the module after database is connected
+  jwtSecurity = require('backend/utils/jwtSecurity.js');
+});
+
+afterAll(async () => {
+  await teardownTestDB();
+});
 
 describe('JWT Security Module Import Test', () => {
   test('should be able to import jwtSecurity module', () => {

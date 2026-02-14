@@ -1,59 +1,58 @@
-# Railway.toml Configuration
-# https://docs.railway.app/deploy/config-as-code
+# Railway.toml - Production Configuration for vttless
+# This file configures Railway deployment for the main backend service
+# For multi-service deployment, see individual railway.*.toml files
 
-# ==========================================
-# Backend Service Configuration
-# ==========================================
 [build]
-builder = "DOCKERFILE"
+builder = "dockerfile"
 dockerfilePath = "Dockerfile.backend"
 
 [deploy]
-startCommand = "npm start"
-healthcheckPath = "/health"
-healthcheckTimeout = 100
-restartPolicyType = "ON_FAILURE"
+numReplicas = 1
+sleepApplication = false
+restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 
-[environments.production]
-numReplicas = 1
-
-[environments.production.deploy]
-startCommand = "npm start"
+# Health check configuration
 healthcheckPath = "/health"
+healthcheckTimeout = 100
 
-# ==========================================
-# Environment Variables (set in Railway dashboard)
-# ==========================================
-# The following environment variables should be configured
-# in the Railway dashboard for each service:
-#
-# Backend Service (vttless-backend):
-#   - MONGODB_URI (MongoDB connection string)
-#   - JWT_SECRET_KEY
-#   - JWT_REFRESH_SECRET_KEY
-#   - JWT_ISSUER
-#   - JWT_AUDIENCE
-#   - JWT_EXPIRATION_MS
-#   - JWT_REFRESH_EXPIRATION_MS
-#   - AWS_ACCESS_KEY_ID
-#   - AWS_SECRET_ACCESS_KEY
-#   - AWS_REGION
-#   - S3_BUCKET_NAME
-#   - GOOGLE_CLIENT_ID (optional)
-#   - GOOGLE_CLIENT_SECRET (optional)
-#   - FACEBOOK_APP_ID (optional)
-#   - FACEBOOK_APP_SECRET (optional)
-#   - GITHUB_CLIENT_ID (optional)
-#   - GITHUB_CLIENT_SECRET (optional)
-#   - CLIENT_URL (frontend URL)
-#   - NODE_ENV=production
-#
-# Client Service (vttless-client):
-#   - REACT_APP_BACKEND_BASE_URL
-#   - REACT_APP_SOCKET_URL
-#
-# EventServer Service (vttless-eventserver):
-#   - PORT
-#   - CLIENT_URL
-#   - NODE_ENV=production
+# Deployment regions (Railway will auto-select if not specified)
+# regions = ["us-west1", "us-east1", "eu-west1"]
+
+[build.watchPaths]
+# Watch these paths for changes to trigger redeploy
+include = [
+    "backend/**",
+    "Dockerfile.backend",
+    "package.json",
+    "package-lock.json",
+    "yarn.lock"
+]
+ignore = [
+    "client/**",
+    "eventserver/**",
+    "tests/**",
+    "docs/**",
+    "extension/**",
+    "uploads/**",
+    "coverage/**",
+    "*.log",
+    "*.md",
+    ".github/**"
+]
+
+# Environment-specific overrides
+[deploy.environment]
+NODE_ENV = "production"
+
+# Production environment variables (set via Railway UI, not here)
+# - MONGODB_URI: Production MongoDB connection string
+# - JWT_SECRET_KEY: Secure JWT signing key
+# - JWT_REFRESH_SECRET_KEY: Secure JWT refresh signing key
+# - AWS_ACCESS_KEY_ID: AWS S3 access key
+# - AWS_SECRET_ACCESS_KEY: AWS S3 secret key
+# - AWS_REGION: AWS region (e.g., us-east-1)
+# - S3_BUCKET_NAME: S3 bucket for file uploads
+# - CLIENT_URL: Production client URL
+# - COOKIE_DOMAIN: Cookie domain for production
+# - PORT: Server port (auto-set by Railway)

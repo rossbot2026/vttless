@@ -159,6 +159,17 @@ class TokenBlacklist {
   }
 
   /**
+   * Shutdown the blacklist service
+   * Cleans up the interval timer
+   */
+  shutdown() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+  }
+
+  /**
    * Get blacklist size (for monitoring)
    */
   size() {

@@ -17,7 +17,7 @@ describe('Users API', () => {
   const testUser = {
     username: 'testuser',
     email: 'test@example.com',
-    password: 'TestPassword123!'
+    password: 'SecurePassword123!'
   };
 
   beforeAll(async () => {

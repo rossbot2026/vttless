@@ -426,7 +426,8 @@ exports.resetPassword = async (req, res) => {
  */
 exports.getCurrentUser = async (req, res) => {
     try {
-        const user = await User.findById(req.user.userId).select('-password');
+        // req.user is already the user object from the JWT strategy
+        const user = req.user;
         if (!user) {
             return res.status(404).json({
                 success: false,
@@ -437,7 +438,13 @@ exports.getCurrentUser = async (req, res) => {
         
         res.json({
             success: true,
-            user
+            user: {
+                _id: user._id,
+                id: user._id,
+                username: user.username,
+                email: user.email,
+                roles: user.roles
+            }
         });
     } catch (error) {
         console.error('Get current user error:', error);
