@@ -2,9 +2,9 @@ name: Deploy to Production
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, master ]
 
 env:
   NODE_VERSION: '18'
