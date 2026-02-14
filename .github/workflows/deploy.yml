@@ -33,11 +33,11 @@ jobs:
     - name: Run ${{ matrix.test-type }} tests
       run: |
         if [ "${{ matrix.test-type }}" = "unit" ]; then
-          npm run test:unit -- --coverage --passWithNoTests
+          npm run test:unit -- --coverage --passWithNoTests --forceExit
         elif [ "${{ matrix.test-type }}" = "integration" ]; then
-          npm run test:integration -- --coverage --passWithNoTests
+          npm run test:integration -- --coverage --passWithNoTests --forceExit
         elif [ "${{ matrix.test-type }}" = "api" ]; then
-          npm run test:api:health -- --passWithNoTests
+          npm run test:api:health -- --passWithNoTests --forceExit
         fi
 
   # ==========================================
