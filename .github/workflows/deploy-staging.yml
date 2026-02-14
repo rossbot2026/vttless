@@ -2,9 +2,8 @@ name: Deploy to Staging
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    branches: [ staging ]
+  workflow_dispatch:
 
 jobs:
   test:
@@ -16,14 +15,9 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '18'
-        cache: 'npm'
     
     - name: Install dependencies
-      run: |
-        npm ci
-        npm ci --prefix client
-        npm ci --prefix backend
-        npm ci --prefix eventserver
+      run: npm ci
     
     - name: Run tests
       run: |
