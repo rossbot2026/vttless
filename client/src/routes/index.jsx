@@ -8,8 +8,9 @@ import Signup from "../components/Signup.jsx";
 import ImprovedFriends from "../components/ImprovedFriends";
 import Campaigns from "../components/Campaigns";
 import NavBar from '../components/Navbar';
-import Play from '../components/Play.jsx';
-import Profile from '../components/Profile';
+import Play from "../components/Play.jsx";
+import Profile from "../components/Profile";
+import PasswordReset from "../components/PasswordReset.jsx";
 
 const Routes = () => {
     const { user } = useAuth();
@@ -28,10 +29,13 @@ const Routes = () => {
                 {
                     path: "/signup",
                     element: <Signup />
+                },
+                {
+                    path: "/password-reset",
+                    element: <PasswordReset />
                 }
             ]
         }
-       
     ];
 
     const routesForAuthenticatedOnly = [
@@ -78,11 +82,9 @@ const Routes = () => {
                     path: "/play/:campaignId",
                     element: <Play />
                 }
-
-                
             ]
         }
-    ]
+    ];
 
     const router = createBrowserRouter([
         ...routesForPublic,

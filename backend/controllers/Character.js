@@ -1,10 +1,16 @@
 // backend/controllers/Character.js
 const { Character, Campaign, Map, Asset } = require("../models");
+const mongoose = require('mongoose');
 
 // Get all characters for a campaign
 exports.getCampaignCharacters = async (req, res) => {
     try {
         const { campaignId } = req.params;
+
+        // Validate campaign ID format
+        if (!mongoose.Types.ObjectId.isValid(campaignId)) {
+            return res.status(400).json({ message: "Invalid campaign ID format" });
+        }
 
         // Verify campaign exists and user has access
         const campaign = await Campaign.findById(campaignId);
@@ -202,6 +208,16 @@ exports.createCharacter = async (req, res) => {
             properties 
         } = req.body;
 
+        // Validate campaign ID format
+        if (!mongoose.Types.ObjectId.isValid(campaignId)) {
+            return res.status(400).json({ message: "Invalid campaign ID format" });
+        }
+
+        // Validate asset ID format
+        if (assetId && !mongoose.Types.ObjectId.isValid(assetId)) {
+            return res.status(400).json({ message: "Invalid asset ID format" });
+        }
+
         // Validate required fields
         if (!name || !assetId) {
             return res.status(400).json({
@@ -248,7 +264,13 @@ exports.createCharacter = async (req, res) => {
         await newCharacter.populate('ownerId', 'username');
         await newCharacter.populate('assetId');
 
-        res.status(201).json(newCharacter);
+        // Convert to object and keep assetId as string for API consistency
+        const characterObject = newCharacter.toObject();
+        if (characterObject.assetId && characterObject.assetId._id) {
+            characterObject.assetId = characterObject.assetId._id.toString();
+        }
+
+        res.status(201).json(characterObject);
     } catch (error) {
         console.error("Error creating character:", error);
         res.status(500).json({ message: "Internal server error" });
@@ -260,6 +282,11 @@ exports.updateCharacter = async (req, res) => {
     try {
         const { characterId } = req.params;
         const updates = req.body;
+
+        // Validate character ID format
+        if (!mongoose.Types.ObjectId.isValid(characterId)) {
+            return res.status(400).json({ message: "Invalid character ID format" });
+        }
 
         const character = await Character.findById(characterId);
         if (!character) {
@@ -308,6 +335,11 @@ exports.updateCharacter = async (req, res) => {
 exports.deleteCharacter = async (req, res) => {
     try {
         const { characterId } = req.params;
+
+        // Validate character ID format
+        if (!mongoose.Types.ObjectId.isValid(characterId)) {
+            return res.status(400).json({ message: "Invalid character ID format" });
+        }
 
         const character = await Character.findById(characterId);
         if (!character) {

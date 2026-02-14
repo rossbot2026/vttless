@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # MongoDB for local development
+  mongo:
+    image: mongo:6.0
+    container_name: vttless-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: vttless
+    volumes:
+      - mongo-data:/data/db
+      - ./scripts/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - vttless-network
+
+  # LocalStack for local AWS services including S3
+  localstack:
+    image: localstack/localstack:latest
+    container_name: vttless-localstack
+    restart: unless-stopped
+    ports:
+      - "4566:4566"    # LocalStack Gateway
+      - "4571:4571"    # Legacy Edge Port
+    environment:
+      - SERVICES=s3
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+      - PORT_WEB_UI=8080
+    volumes:
+      - localstack-data:/tmp/localstack
+    networks:
+      - vttless-network
+
+  # Redis for session storage (optional but recommended)
+  redis:
+    image: redis:7-alpine
+    container_name: vttless-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - vttless-network
+
+volumes:
+  mongo-data:
+  localstack-data:
+  redis-data:
+
+networks:
+  vttless-network:
+    driver: bridge

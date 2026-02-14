@@ -87,7 +87,6 @@ UserSchema.methods.emailExists = async function(email) {
 }
 
 
-UserSchema
 const User = mongoose.model('User', UserSchema);
 
 module.exports = User;

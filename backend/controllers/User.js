@@ -56,7 +56,7 @@ exports.signup = async (req, res) => {
             });
         }
 
-        res.status(201).json({ message: "User registered successfully ", user: newUser });
+        res.status(201).json({ message: "User registered successfully", user: newUser });
 
     } catch (error) {
         console.error("Error registering customer", error);

@@ -1,7 +1,6 @@
 import axios from "axios";
 import { api } from '../common/axiosPrivate'
 
-
 const register = (username, email, password) => {
     return api.post("/auth/signup", {
         username,
@@ -36,11 +35,26 @@ const getCurrentUser = () => {
     return JSON.parse(localStorage.getItem("vttless-user"));
 }
 
+const forgotPassword = (email) => {
+    return api.post("/auth/forgot-password", {
+        email
+    });
+}
+
+const resetPassword = (token, password) => {
+    return api.post("/auth/reset-password", {
+        token,
+        password
+    });
+}
+
 const AuthService = {
     register,
     login,
     logout,
-    getCurrentUser
+    getCurrentUser,
+    forgotPassword,
+    resetPassword
 }
 
 export default AuthService;
