@@ -390,16 +390,10 @@ exports.resetPassword = async (req, res) => {
             });
         }
         
-        // Update password
-        user.password = await bcrypt.hash(password, 10);
+        // Update password (pre-save hook will handle password history)
+        user.password = password;
         user.passwordResetToken = undefined;
         user.passwordResetTokenExpiry = undefined;
-        
-        // Add to password history for security
-        user.passwordHistory = [
-            ...user.passwordHistory.slice(-4), // Keep last 4 passwords
-            { passwordHash: user.password, changedAt: new Date() }
-        ];
         
         await user.save();
         
