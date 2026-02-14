@@ -41,27 +41,24 @@ jobs:
   deploy-staging:
     runs-on: ubuntu-latest
     needs: [test, build-and-test-docker]
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/staging'
     steps:
     - uses: actions/checkout@v4
     
+    - name: Install Railway CLI
+      run: npm install -g @railway/cli
+    
     - name: Deploy Backend to Railway
-      uses: bervProject/railway-deploy@v1.2.0
+      run: railway up --service vttless-backend
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-      with:
-        service: vttless-backend
         
     - name: Deploy Client to Railway  
-      uses: bervProject/railway-deploy@v1.2.0
+      run: railway up --service vttless-client
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-      with:
-        service: vttless-client
         
     - name: Deploy EventServer to Railway
-      uses: bervProject/railway-deploy@v1.2.0
+      run: railway up --service vttless-eventserver
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-      with:
-        service: vttless-eventserver

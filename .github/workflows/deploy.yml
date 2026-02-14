@@ -80,17 +80,16 @@ jobs:
     if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push'
     environment:
       name: production-backend
-      url: ${{ steps.deploy.outputs.url }}
     steps:
     - uses: actions/checkout@v4
     
+    - name: Install Railway CLI
+      run: npm install -g @railway/cli
+    
     - name: Deploy Backend to Railway
-      id: deploy
-      uses: bervProject/railway-deploy@main
+      run: railway up --service vttless-backend
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-      with:
-        service: vttless-backend
 
   deploy-client:
     runs-on: ubuntu-latest
@@ -98,17 +97,16 @@ jobs:
     if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push'
     environment:
       name: production-client
-      url: ${{ steps.deploy.outputs.url }}
     steps:
     - uses: actions/checkout@v4
     
+    - name: Install Railway CLI
+      run: npm install -g @railway/cli
+    
     - name: Deploy Client to Railway
-      id: deploy
-      uses: bervProject/railway-deploy@main
+      run: railway up --service vttless-client
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-      with:
-        service: vttless-client
 
   deploy-eventserver:
     runs-on: ubuntu-latest
@@ -116,17 +114,16 @@ jobs:
     if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push'
     environment:
       name: production-eventserver
-      url: ${{ steps.deploy.outputs.url }}
     steps:
     - uses: actions/checkout@v4
     
+    - name: Install Railway CLI
+      run: npm install -g @railway/cli
+    
     - name: Deploy EventServer to Railway
-      id: deploy
-      uses: bervProject/railway-deploy@main
+      run: railway up --service vttless-eventserver
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-      with:
-        service: vttless-eventserver
 
   # ==========================================
   # Job 4: Health Check
