@@ -31,7 +31,7 @@ import {
 const Login = () => {
     const navigate = useNavigate();
     const {user, setUser} = useAuth();
-    const [username, setUsername] = useState("");
+    const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const toast = useToast();
@@ -76,7 +76,7 @@ const Login = () => {
         // }
         //event.preventDefault();
 
-        AuthService.login(values.username, values.password).then((res) => {
+        AuthService.login(values.email, values.password).then((res) => {
             setUser(res);
             navigate('/');
         }).catch( (err) => {
@@ -106,18 +106,18 @@ const Login = () => {
                 >
                     <Stack spacing="6">
                     <Stack spacing="5">
-                        <FormControl isInvalid={errors.username}>
-                            <FormLabel htmlFor="text">Username</FormLabel>
+                        <FormControl isInvalid={errors.email}>
+                            <FormLabel htmlFor="email">Email</FormLabel>
                             <Input 
-                                //id="username" 
-                                type="text" 
-                                placeholder="Username"
-                                {...register('username', {
-                                    required: 'This is required',
-                                    minLength: { value: 3, message: 'Minimum length should be 3'}
+                                id="email" 
+                                type="email" 
+                                placeholder="Enter your email"
+                                {...register('email', {
+                                    required: 'Email is required',
+                                    pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Invalid email address' }
                                 })}
                             />
-                            <FormErrorMessage> {errors.username && errors.username.message} </FormErrorMessage>
+                            <FormErrorMessage> {errors.email && errors.email.message} </FormErrorMessage>
                         </FormControl>
                         <FormControl isInvalid={errors.password}>
                             <FormLabel htmlFor="password">Password</FormLabel>
@@ -137,8 +137,11 @@ const Login = () => {
                     </Stack>
                     <HStack justify="space-between">
                         <Checkbox defaultChecked>Remember me</Checkbox>
-                        <Button variant="text" size="sm">
-                        Forgot password?
+                        <Button 
+                            variant="text" 
+                            size="sm"
+                            onClick={() => navigate('/password-reset')}>
+                            Forgot password?
                         </Button>
                     </HStack>
                     <Stack spacing="6">

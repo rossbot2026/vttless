@@ -1,6 +1,6 @@
 import { useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
-import axios from 'axios';
+import { useEffect, useCallback } from 'react';
+import AuthService from './AuthService';
 
 
 const parseJwt = (token) => {
@@ -11,29 +11,34 @@ const parseJwt = (token) => {
     }
 }
 
-const validateJwt = () => {
-    try {
-        axios.get('/auth/verify');
-    } catch (e) {
-
-    }
-}
-
-const AuthVerify = (props) => {
+const AuthVerify = () => {
     let location = useLocation();
 
+    const logOut = useCallback(() => {
+        AuthService.logout();
+        // Use window.location to force full page reload and clear state
+        window.location.href = '/login';
+    }, []);
+
     useEffect(() => {
-        const user = JSON.parse(localStorage.getItem("vttless-user"));
+        const userJson = localStorage.getItem("vttless-user");
+        
+        if (userJson) {
+            const user = JSON.parse(userJson);
+            
+            // Check if accessToken exists before trying to parse it
+            if (user && user.accessToken) {
+                const decodedJwt = parseJwt(user.accessToken);
 
-        if (user) {
-            const decodedJwt = parseJwt(user.accessToken);
-
-            if (decodedJwt.exp * 1000 < Date.now()) {
-                props.logOut();
+                // Check if JWT is expired
+                if (decodedJwt && decodedJwt.exp * 1000 < Date.now()) {
+                    logOut();
+                }
             }
         }
-    }, [location, props]);
-    return;
+    }, [location, logOut]);
+    
+    return null;
 };
 
 export default AuthVerify;

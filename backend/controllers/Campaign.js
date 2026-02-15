@@ -25,9 +25,9 @@ exports.list = async (req, res) => {
         });
 
         // Extract friend IDs from the friendships
-        const friendIds = friendships.map(friendship => 
-            friendship.requestor.toString() === req.user._id.toString() 
-                ? friendship.requestee.toString() 
+        const friendIds = friendships.map(friendship =>
+            friendship.requestor.toString() === req.user._id.toString()
+                ? friendship.requestee.toString()
                 : friendship.requestor.toString()
         );
 
@@ -53,7 +53,7 @@ exports.list = async (req, res) => {
         .sort({ created: -1 }); // Most recent first
 
         console.log("Campaigns: " + campaigns);
-        
+
         // Add a flag to indicate if this is a friend's campaign
         const campaignsWithMetadata = campaigns.map(campaign => {
             const gmId = campaign.gm._id.toString();
@@ -80,7 +80,7 @@ exports.add = async (req, res) => {
             players: [req.user._id] // GM is also a player
         });
         await campaign.save();
-        res.status(201).json(campaign);
+        res.status(201).json({ campaign });
     } catch (error) {
         res.status(400).json({ message: error.message });
     }
@@ -107,7 +107,7 @@ exports.update = async (req, res) => {
             campaign.activeMap = req.body.activeMap;
         }
         campaign.lastModified = Date.now();
-        
+
         await campaign.save();
         res.json(campaign);
     } catch (error) {
@@ -138,7 +138,7 @@ exports.join = async (req, res) => {
         if (!campaign) {
             return res.status(404).json({ message: 'Campaign not found' });
         }
-        
+
         if (campaign.players.includes(req.user._id)) {
             return res.status(400).json({ message: 'Already a member' });
         }
@@ -154,10 +154,16 @@ exports.join = async (req, res) => {
 exports.get = async (req, res) => {
     try {
         console.log("Trying to find campaign with ID: " + req.params.id);
+        
+        // Check if the ID is a valid ObjectId format
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(404).json({ message: 'Campaign not found' });
+        }
+        
         const campaign = await Campaign.findById(req.params.id)
             .populate('gm', 'username email')
             .populate('players', 'username email')
-            .populate({ 
+            .populate({
                 path: 'activeMap',
                 populate: {
                     path: 'tokens.ownerId',
@@ -171,7 +177,7 @@ exports.get = async (req, res) => {
 
         // Check if user has permission to access this campaign
         const isGM = campaign.gm._id.toString() === req.user.id.toString();
-        const isPlayer = campaign.players.some(player => 
+        const isPlayer = campaign.players.some(player =>
             player._id.toString() === req.user.id.toString()
         );
 
@@ -192,7 +198,7 @@ exports.addMap = async (req, res) => {
         if (!campaign) {
             return res.status(404).json({ message: 'Campaign not found' });
         }
-        
+
         // Check if the user is the GM
         if (campaign.gm.toString() !== req.user._id.toString()) {
             return res.status(403).json({ message: 'Only the GM can add maps' });
@@ -200,14 +206,14 @@ exports.addMap = async (req, res) => {
 
         // Add the new map ID to the campaign's maps array
         campaign.maps.push(req.body.mapId);
-        
+
         // If this is the first map, set it as active
         if (!campaign.activeMap) {
             campaign.activeMap = req.body.mapId;
         }
 
         await campaign.save();
-        res.status(200).json(campaign);
+        res.status(201).json(campaign);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

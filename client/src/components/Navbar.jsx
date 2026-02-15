@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, Box, Flex, Text, Button, Stack, Avatar } from "@chakra-ui/react";
 import Logo from "./Logo";
-import axios from 'axios';
+import { api } from '../common/axiosPrivate';
 import {useAuth} from '../providers/AuthProvider';
 import {Outlet} from 'react-router-dom';
 
@@ -24,7 +24,7 @@ const NavBar = (props) => {
     const [isOpen, setIsOpen] = useState(false);
     const [profilePhotoUrl, setProfilePhotoUrl] = useState('');
     const toggle = () => setIsOpen(!isOpen);
-    const user = useAuth();
+    const { user } = useAuth();
     const fetchProfilePhoto = async () => {
       try {
         // First check cache
@@ -33,11 +33,7 @@ const NavBar = (props) => {
           setProfilePhotoUrl(cachedUrl);
           return;
         }
-        const response = await axios.get(`${process.env.REACT_APP_BACKEND_BASE_URL}/images/profile-photo-download-url`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`
-          }
-        });
+        const response = await api.get('/images/profile-photo-download-url');
         const { downloadUrl } = response.data;
 
         // Cache the URL with expiration (50 minutes to account for hour limit on the presigned URL)
@@ -126,15 +122,15 @@ const MenuToggle = ({ toggle, isOpen }) => {
           pt={[4, 4, 0, 0]}
         >
           <MenuItem to="/">Home</MenuItem>
-          <MenuItem to="/campaigns">Campaigns</MenuItem>
-          <MenuItem to="/friends">Friends</MenuItem>
-          { user ? 
+          { user ?
               <>
+              <MenuItem to="/campaigns">Campaigns</MenuItem>
+              <MenuItem to="/friends">Friends</MenuItem>
               <MenuItem to="/logout">Logout</MenuItem>     
               <MenuItem to="/profile" isLast>
                 <Flex align="center" gap={3}>
-                  <Avatar name={user.user.username} src={profilePhotoUrl || ''} />
-                  <Text>{user.user.username}</Text>
+                  <Avatar name={user.user?.username} src={profilePhotoUrl || ''} />
+                  <Text>{user.user?.username}</Text>
                 </Flex>
               </MenuItem>
               </>

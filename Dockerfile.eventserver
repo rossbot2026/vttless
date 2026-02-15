@@ -3,10 +3,10 @@ FROM node:18-alpine3.19
 WORKDIR /app
 
 COPY eventserver/package*.json ./
-RUN npm install --production
+RUN npm install --omit=dev
 
 COPY eventserver/ .
 
 EXPOSE 4001
 
-CMD ["npm", "start"]
+CMD ["node", "index.js"]

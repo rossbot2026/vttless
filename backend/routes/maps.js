@@ -22,6 +22,7 @@ const upload = multer({
 
 
 // Map routes
+router.get('/', passport.authenticate('jwt', {session: false}), mapController.getAllMaps);
 router.post('/', passport.authenticate('jwt', {session: false}), mapController.createMap);
 router.get('/:id', passport.authenticate('jwt', {session: false}), mapController.getMap);
 router.put('/:id', passport.authenticate('jwt', {session: false}), mapController.updateMap);

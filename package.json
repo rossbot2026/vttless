@@ -11,9 +11,36 @@
         "backend": "npm start --prefix backend",
         "client": "npm start --prefix client",
         "eventserver": "npm start --prefix eventserver",
-        "dev": "concurrently \"npm run backend\" \"npm run client\" \"npm run eventserver\""
+        "dev": "concurrently \"npm run backend\" \"npm run client\" \"npm run eventserver\"",
+        "test": "jest",
+        "test:unit": "jest tests/unit",
+        "test:integration": "jest tests/integration",
+        "test:e2e": "jest tests/e2e",
+        "test:coverage": "jest --coverage",
+        "test:watch": "jest --watch",
+        "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand",
+        "test:api": "jest tests/api",
+        "test:api:health": "jest tests/api/health.test.js",
+        "test:api:auth": "jest tests/api/auth.test.js",
+        "test:api:users": "jest tests/api/users.test.js",
+        "test:api:campaigns": "jest tests/api/campaigns.test.js",
+        "test:api:all": "jest tests/api --verbose"
     },
     "dependencies": {
         "concurrently": "^7.6.0"
+    },
+    "devDependencies": {
+        "@types/bcryptjs": "^2.4.6",
+        "@types/jest": "^30.0.0",
+        "@types/jsonwebtoken": "^9.0.10",
+        "@types/mongoose": "^5.11.96",
+        "@types/supertest": "^6.0.3",
+        "bcryptjs": "^3.0.3",
+        "jest": "^30.2.0",
+        "jsonwebtoken": "^9.0.3",
+        "mongoose": "^9.1.6",
+        "supertest": "^7.2.2",
+        "testcontainers": "^10.13.0",
+        "ts-jest": "^29.4.6"
     }
 }
