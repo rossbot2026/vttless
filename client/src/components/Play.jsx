@@ -34,7 +34,7 @@ import { HiMenu } from 'react-icons/hi';
 import { IoArrowBack, IoChevronDown, IoChevronUp } from 'react-icons/io5';
 import { socket } from '../socket';
 import './Play.css';
-import axiosPrivate from '../utils/axiosPrivate';
+import { api } from '../common/api';
 import VideoChat from './VideoChat';
 import CharacterImageUpdate from './CharacterImageUpdate';
 
@@ -155,14 +155,14 @@ const Play = () => {
     useEffect(() => {
         const loadCampaignData = async () => {
             try {
-                const response = await axiosPrivate.get(`/campaigns/${campaignId}`);
+                const response = await api.get(`/campaigns/${campaignId}`);
                 setCampaign(response.data);
                 
                 if (response.data.activeMap) {
                     try {
                         // Extract map ID - activeMap might be populated object or just ID string
                         const mapId = response.data.activeMap._id || response.data.activeMap;
-                        const mapResponse = await axiosPrivate.get(`/maps/${mapId}`);
+                        const mapResponse = await api.get(`/maps/${mapId}`);
                         setCurrentMap(mapResponse.data);
                         
                         // Initialize game state from map data
@@ -293,7 +293,7 @@ const Play = () => {
      const uploadAsset = async (file, assetType) => {
         try {
             // Get presigned URL
-            const { data: { uploadUrl, assetId } } = await axiosPrivate.post(
+            const { data: { uploadUrl, assetId } } = await api.post(
                 '/assets/upload-url',
                 {
                     fileName: file.name,
@@ -304,14 +304,14 @@ const Play = () => {
             );
 
             // Upload file directly to S3
-            await axiosPrivate.put(uploadUrl, file, {
+            await api.put(uploadUrl, file, {
                 headers: {
                     'Content-Type': file.type
                 }
             });
 
             // Confirm upload
-            await axiosPrivate.post(
+            await api.post(
                 '/assets/confirm-upload',
                 { assetId }
             );
@@ -329,7 +329,7 @@ const Play = () => {
 
     const loadAssetUrl = async (assetId) => {
         try {
-            const { data: { downloadUrl } } = await axiosPrivate.get(
+            const { data: { downloadUrl } } = await api.get(
                 `/assets/download/${assetId}`);
             return downloadUrl;
         } catch (error) {
@@ -431,7 +431,7 @@ const Play = () => {
             const formData = new FormData();
             formData.append('image', file);
             
-            const analysisResponse = await axiosPrivate.post('/maps/analyze', formData, {
+            const analysisResponse = await api.post('/maps/analyze', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
@@ -470,7 +470,7 @@ const Play = () => {
         }
         
         // Update map in database
-        await axiosPrivate.patch(`/maps/${currentMap._id}`, mapUpdate);
+        await api.patch(`/maps/${currentMap._id}`, mapUpdate);
 
         // Update local map state if grid was changed
         if (mapUpdate.gridWidth || mapUpdate.gridHeight || mapUpdate.gridSettings) {
@@ -560,7 +560,7 @@ const Play = () => {
         
         try {
             // 1. Create the campaign character
-            const characterResponse = await axiosPrivate.post(`/campaigns/${campaignId}/characters`, {
+            const characterResponse = await api.post(`/campaigns/${campaignId}/characters`, {
                 name: characterName,
                 assetId,
                 level: 1,
@@ -576,7 +576,7 @@ const Play = () => {
             const newCharacter = characterResponse.data;
             
             // 2. Place the character on the current map
-            await axiosPrivate.post(`/characters/${newCharacter._id}/place/${currentMap._id}`, {
+            await api.post(`/characters/${newCharacter._id}/place/${currentMap._id}`, {
                 x,
                 y,
                 width: gridSettings.gridSize,
@@ -585,7 +585,7 @@ const Play = () => {
             
             // 3. Reload the map and character data
             const [mapResponse] = await Promise.all([
-                axiosPrivate.get(`/maps/${currentMap._id}`),
+                api.get(`/maps/${currentMap._id}`),
                 loadCampaignCharacters() // Refresh character list
             ]);
             
@@ -1133,7 +1133,7 @@ const Play = () => {
                 if (currentToken) {
                     if (currentToken.isCharacterInstance) {
                         // Update character instance position and size
-                        await axiosPrivate.patch(`/characters/${currentToken.characterId}/position/${currentMap._id}`, {
+                        await api.patch(`/characters/${currentToken.characterId}/position/${currentMap._id}`, {
                             x: currentToken.x,
                             y: currentToken.y,
                             width: currentToken.width,
@@ -1141,7 +1141,7 @@ const Play = () => {
                         });
                     } else {
                         // Update legacy token position and size
-                        await axiosPrivate.patch(`/maps/${currentMap._id}/tokens/${gameState.selectedToken.id}`, {
+                        await api.patch(`/maps/${currentMap._id}/tokens/${gameState.selectedToken.id}`, {
                             x: currentToken.x,
                             y: currentToken.y,
                             width: currentToken.width,
@@ -1176,13 +1176,13 @@ const Play = () => {
                 if (currentToken) {
                     if (currentToken.isCharacterInstance) {
                         // Update character instance position
-                        await axiosPrivate.patch(`/characters/${currentToken.characterId}/position/${currentMap._id}`, {
+                        await api.patch(`/characters/${currentToken.characterId}/position/${currentMap._id}`, {
                             x: currentToken.x,
                             y: currentToken.y
                         });
                     } else {
                         // Update legacy token position
-                        await axiosPrivate.patch(`/maps/${currentMap._id}/tokens/${gameState.selectedToken.id}`, {
+                        await api.patch(`/maps/${currentMap._id}/tokens/${gameState.selectedToken.id}`, {
                             x: currentToken.x,
                             y: currentToken.y
                         });
@@ -1200,7 +1200,7 @@ const Play = () => {
         // Save background position to database if we were dragging background
         if (background.isDragging && currentMap?._id && currentMap.backgroundImage?.assetId) {
             try {
-                await axiosPrivate.patch(`/maps/${currentMap._id}`, {
+                await api.patch(`/maps/${currentMap._id}`, {
                     backgroundImage: {
                         assetId: currentMap.backgroundImage.assetId,
                         position: { 
@@ -1484,7 +1484,7 @@ const Play = () => {
     const loadCampaignMaps = async () => {
         if (!isGM || !campaignId) return;
         try {
-            const response = await axiosPrivate.get(`/maps/campaign/${campaignId}`);
+            const response = await api.get(`/maps/campaign/${campaignId}`);
             setCampaignMaps(response.data);
         } catch (error) {
             toast({
@@ -1499,7 +1499,7 @@ const Play = () => {
     const loadCampaignCharacters = async () => {
         if (!campaignId) return;
         try {
-            const response = await axiosPrivate.get(`/campaigns/${campaignId}/characters/user`);
+            const response = await api.get(`/campaigns/${campaignId}/characters/user`);
             setCampaignCharacters(response.data);
         } catch (error) {
             toast({
@@ -1514,7 +1514,7 @@ const Play = () => {
     const loadCampaignAssets = async () => {
         if (!campaignId) return;
         try {
-            const response = await axiosPrivate.get(`/assets/campaign/${campaignId}`);
+            const response = await api.get(`/assets/campaign/${campaignId}`);
             setCampaignAssets(response.data || []);
         } catch (error) {
             console.error('Error loading campaign assets:', error);
@@ -1561,7 +1561,7 @@ const Play = () => {
             const centerX = Math.round((400 / gridSettings.gridSize)) * gridSettings.gridSize;
             const centerY = Math.round((300 / gridSettings.gridSize)) * gridSettings.gridSize;
             
-            await axiosPrivate.post(`/characters/${characterId}/place/${currentMap._id}`, {
+            await api.post(`/characters/${characterId}/place/${currentMap._id}`, {
                 x: centerX,
                 y: centerY,
                 width: gridSettings.gridSize,
@@ -1569,7 +1569,7 @@ const Play = () => {
             });
 
             // Reload the map to get updated character instances
-            const mapResponse = await axiosPrivate.get(`/maps/${currentMap._id}`);
+            const mapResponse = await api.get(`/maps/${currentMap._id}`);
             setCurrentMap(mapResponse.data);
             
             // Initialize game state with the updated map
@@ -1594,10 +1594,10 @@ const Play = () => {
         if (!currentMap) return;
         
         try {
-            await axiosPrivate.delete(`/characters/${characterId}/remove/${currentMap._id}`);
+            await api.delete(`/characters/${characterId}/remove/${currentMap._id}`);
 
             // Reload the map to get updated character instances
-            const mapResponse = await axiosPrivate.get(`/maps/${currentMap._id}`);
+            const mapResponse = await api.get(`/maps/${currentMap._id}`);
             setCurrentMap(mapResponse.data);
             
             // Initialize game state with the updated map
@@ -1629,7 +1629,7 @@ const Play = () => {
         }
 
         try {
-            const response = await axiosPrivate.post('/maps', {
+            const response = await api.post('/maps', {
                 name: newMapName,
                 campaign: campaignId,
                 gridWidth: 20,
@@ -1659,13 +1659,13 @@ const Play = () => {
     const handleSwitchMap = async (mapId) => {
         try {
             // Update campaign's active map using POST with campaignId in body
-            await axiosPrivate.post('/campaigns/update', {
+            await api.post('/campaigns/update', {
                 campaignId: campaignId,
                 activeMap: mapId
             });
 
             // Fetch the new map data instead of reloading the page
-            const mapResponse = await axiosPrivate.get(`/maps/${mapId}`);
+            const mapResponse = await api.get(`/maps/${mapId}`);
             setCurrentMap(mapResponse.data);
             
             // Update campaign state to reflect the new active map ID
@@ -1712,7 +1712,7 @@ const Play = () => {
             }));
 
             // Update map in database
-            await axiosPrivate.patch(`/maps/${currentMap._id}`, {
+            await api.patch(`/maps/${currentMap._id}`, {
                 gridWidth: newSettings.gridWidth,
                 gridHeight: newSettings.gridHeight,
                 gridSettings: {
@@ -1773,7 +1773,7 @@ const Play = () => {
             // Update database - different endpoints for character instances vs legacy tokens
             if (token?.isCharacterInstance) {
                 // Update character name (affects all maps)
-                await axiosPrivate.patch(`/characters/${token.characterId}`, {
+                await api.patch(`/characters/${token.characterId}`, {
                     name: editingName
                 });
                 
@@ -1781,7 +1781,7 @@ const Play = () => {
                 await loadCampaignCharacters();
             } else {
                 // Update legacy token name
-                await axiosPrivate.patch(`/maps/${currentMap._id}/tokens/${tokenId}`, {
+                await api.patch(`/maps/${currentMap._id}/tokens/${tokenId}`, {
                     name: editingName
                 });
             }
