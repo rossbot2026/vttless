@@ -34,13 +34,13 @@ import {
     AlertIcon,
     FormHelperText,
     Divider,
-    HStack,
     Spinner,
     Badge
 } from '@chakra-ui/react';
-import { FiPlus, FiMap } from 'react-icons/fi';
+import { FiPlus, FiMap, FiZap } from 'react-icons/fi';
 import { api } from '../common/axiosPrivate';
 import MapEditDrawer from './MapEditDrawer';
+import AIMapGenerator from './AIMapGenerator';
 
 
 const NewMapModal = ({ isOpen, onClose, onSubmit, isSubmitting }) => {
@@ -305,6 +305,12 @@ const MapSidebar = ({ isOpen, onClose, campaign, onMapAdd, isGM }) => {
         onClose: onNewMapModalClose
     } = useDisclosure();
     
+    const {
+        isOpen: isAIMapModalOpen,
+        onOpen: onAIMapModalOpen,
+        onClose: onAIMapModalClose
+    } = useDisclosure();
+    
     const handleCreateMap = async (mapData) => {
         setIsSubmitting(true);
         try {
@@ -414,13 +420,23 @@ const MapSidebar = ({ isOpen, onClose, campaign, onMapAdd, isGM }) => {
                     <DrawerBody>
                         <VStack spacing={4} align="stretch">
                             {isGM && (
-                                <Button
-                                    leftIcon={<FiPlus />}
-                                    colorScheme="blue"
-                                    onClick={onNewMapModalOpen}
-                                >
-                                    Create New Map
-                                </Button>
+                                <>
+                                    <Button
+                                        leftIcon={<FiPlus />}
+                                        colorScheme="blue"
+                                        onClick={onNewMapModalOpen}
+                                    >
+                                        Create New Map
+                                    </Button>
+                                    <Button
+                                        leftIcon={<FiZap />}
+                                        colorScheme="purple"
+                                        variant="outline"
+                                        onClick={onAIMapModalOpen}
+                                    >
+                                        Generate AI Map
+                                    </Button>
+                                </>
                             )}
                             
                             <Grid templateColumns="repeat(2, 1fr)" gap={4}>
@@ -465,6 +481,12 @@ const MapSidebar = ({ isOpen, onClose, campaign, onMapAdd, isGM }) => {
                 onClose={() => setIsEditDrawerOpen(false)}
                 map={selectedMap}
                 onMapUpdate={onMapAdd}
+            />
+            <AIMapGenerator
+                isOpen={isAIMapModalOpen}
+                onClose={onAIMapModalClose}
+                campaignId={campaign?._id}
+                onMapGenerated={onMapAdd}
             />
         </>
     );
