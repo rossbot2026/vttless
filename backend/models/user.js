@@ -22,9 +22,14 @@ const UserSchema = new mongoose.Schema({
             default: Date.now
         }
     }],
-    passwordChangedAt: Date
+    passwordChangedAt: Date,
+    passwordResetToken: { type: String, default: null },
+    passwordResetTokenExpiry: { type: Date, default: null }
     
 }, {timestamps: true});
+
+// Index for password reset token lookups
+UserSchema.index({ passwordResetToken: 1 });
 
 UserSchema.virtual('friends', {
     ref: 'Friend',
