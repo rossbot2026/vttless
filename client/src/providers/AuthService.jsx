@@ -11,7 +11,7 @@ const register = (username, email, password) => {
 
 const login = (username, password) => {
     return api.post("/auth/login", {
-        username,
+        email: username,
         password,
     })
     .then((response) => {
