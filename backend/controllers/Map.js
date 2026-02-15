@@ -1,6 +1,50 @@
 // backend/controllers/Map.js
-const { Map, Campaign } = require("../models");
+const { Map, Campaign, Asset } = require("../models");
 const { analyzeMapImage } = require("../services/mapAnalyzer");
+const { generateBattleMap, isConfigured } = require("../services/openRouter");
+const AWS = require('aws-sdk');
+
+// Initialize S3 client
+const s3 = new AWS.S3({
+    region: process.env.AWS_REGION,
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+});
+
+/**
+ * Upload an image from a URL to S3
+ * @param {string} imageUrl - The URL of the image to upload
+ * @param {string} campaignId - The campaign ID for the file path
+ * @param {string} fileName - Name for the file
+ * @returns {Promise<string>} - The S3 key of the uploaded file
+ */
+async function uploadImageFromUrlToS3(imageUrl, campaignId, fileName) {
+    // Fetch the image
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.statusText}`);
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    
+    // Determine content type
+    const contentType = response.headers.get('content-type') || 'image/png';
+    
+    // Create S3 key
+    const environment = process.env.NODE_ENV || 'development';
+    const key = `${environment}/campaigns/${campaignId}/maps/${Date.now()}-${fileName}`;
+    
+    // Upload to S3
+    await s3.upload({
+        Bucket: process.env.AWS_S3_BUCKET_NAME,
+        Key: key,
+        Body: buffer,
+        ContentType: contentType
+    }).promise();
+    
+    return key;
+}
 
 exports.createMap = async (req, res) => {
     try {
@@ -367,5 +411,177 @@ exports.analyzeMap = async (req, res) => {
             gridSize: 40,
             confidence: 0.0
         });
+    }
+};
+
+// AI Battle Map Generation
+exports.generateAIMap = async (req, res) => {
+    try {
+        const { 
+            name, 
+            prompt, 
+            style, 
+            gridWidth, 
+            gridHeight, 
+            gridSize,
+            campaign 
+        } = req.body;
+
+        // Validate required fields
+        if (!name || !prompt || !campaign) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields',
+                errors: {
+                    ...((!name) && { name: 'Map name is required' }),
+                    ...((!prompt) && { prompt: 'Prompt is required' }),
+                    ...((!campaign) && { campaign: 'Campaign ID is required' })
+                }
+            });
+        }
+
+        // Validate style
+        const validStyles = ['fantasy', 'scifi', 'modern', 'dungeon'];
+        if (style && !validStyles.includes(style)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid style',
+                validStyles
+            });
+        }
+
+        // Check if OpenRouter is configured
+        if (!isConfigured()) {
+            return res.status(503).json({
+                success: false,
+                message: 'AI map generation is not configured. Please contact the administrator.'
+            });
+        }
+
+        // Verify campaign exists and user has permission
+        const campaignDoc = await Campaign.findById(campaign);
+        if (!campaignDoc) {
+            return res.status(404).json({ message: "Campaign not found" });
+        }
+
+        // Check if user is GM of the campaign
+        if (campaignDoc.gm.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ message: "Only the GM can generate AI maps" });
+        }
+
+        // Generate the map using OpenRouter
+        const result = await generateBattleMap(prompt, style || 'fantasy', {
+            width: gridWidth || 10,
+            height: gridHeight || 10
+        });
+
+        // Upload the generated image to S3
+        let s3Key;
+        try {
+            s3Key = await uploadImageFromUrlToS3(
+                result.imageUrl,
+                campaign.toString(),
+                `${name.replace(/\s+/g, '-').toLowerCase()}.png`
+            );
+        } catch (uploadError) {
+            console.error('Error uploading to S3:', uploadError);
+            // Continue with the URL if S3 upload fails
+        }
+
+        // Create the map with AI-generated image
+        const newMap = new Map({
+            name,
+            campaign,
+            gridWidth: gridWidth || 10,
+            gridHeight: gridHeight || 10,
+            gridSettings: {
+                size: gridSize || 40,
+                visible: true,
+                color: '#ccc'
+            },
+            // AI-specific fields
+            aiGenerated: true,
+            aiPrompt: prompt,
+            aiStyle: style || 'fantasy',
+            generationCost: result.cost,
+            imageUrl: s3Key ? `s3://${process.env.AWS_S3_BUCKET_NAME}/${s3Key}` : result.imageUrl,
+            status: 'completed'
+        });
+
+        await newMap.save();
+
+        // If this is the first map, set it as the active map
+        if (!campaignDoc.activeMap) {
+            campaignDoc.activeMap = newMap._id;
+            await campaignDoc.save();
+        }
+
+        res.status(201).json({
+            success: true,
+            message: 'AI battle map generated successfully',
+            map: newMap
+        });
+    } catch (error) {
+        console.error("Error generating AI map:", error);
+        
+        // Handle specific errors
+        if (error.message.includes('Rate limit')) {
+            return res.status(429).json({
+                success: false,
+                message: 'Rate limit exceeded. Please try again later.'
+            });
+        }
+        
+        if (error.message.includes('not configured')) {
+            return res.status(503).json({
+                success: false,
+                message: 'AI map generation is not available.'
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            message: "Failed to generate AI battle map",
+            error: error.message
+        });
+    }
+};
+
+exports.getGenerationStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const map = await Map.findById(id);
+        if (!map) {
+            return res.status(404).json({ message: "Map not found" });
+        }
+
+        // Check if user has access to the campaign
+        const campaign = await Campaign.findById(map.campaign);
+        if (!campaign) {
+            return res.status(404).json({ message: "Campaign not found" });
+        }
+
+        const isGM = campaign.gm.toString() === req.user._id.toString();
+        const isPlayer = campaign.players.some(player => 
+            player.toString() === req.user._id.toString()
+        );
+
+        if (!isGM && !isPlayer) {
+            return res.status(403).json({ message: "Access denied" });
+        }
+
+        // Return the AI generation status
+        res.json({
+            aiGenerated: map.aiGenerated,
+            aiPrompt: map.aiPrompt,
+            aiStyle: map.aiStyle,
+            generationCost: map.generationCost,
+            imageUrl: map.imageUrl,
+            status: map.status
+        });
+    } catch (error) {
+        console.error("Error fetching generation status:", error);
+        res.status(500).json({ message: "Internal server error" });
     }
 };
