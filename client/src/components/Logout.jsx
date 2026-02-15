@@ -1,16 +1,19 @@
+import {useEffect} from 'react';
+import {useNavigate} from 'react-router-dom';
 import {useAuth} from '../providers/AuthProvider';
 import AuthService from '../providers/AuthService';
 
 const Logout = () => {
+    const navigate = useNavigate();
     const {setUser} = useAuth();
 
-    AuthService.logout();
-    setUser(null);
+    useEffect(() => {
+        AuthService.logout();
+        setUser(null);
+        navigate('/login');
+    }, [navigate, setUser]);
 
-    
-
-    // TODO: Add some logic to remove the local cookie for the JWT.
-
+    return <div>Logging out...</div>;
 }
 
 export default Logout;
