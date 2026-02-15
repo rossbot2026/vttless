@@ -34,7 +34,7 @@ import { HiMenu } from 'react-icons/hi';
 import { IoArrowBack, IoChevronDown, IoChevronUp } from 'react-icons/io5';
 import { socket } from '../socket';
 import './Play.css';
-import { api } from '../common/api';
+import { api } from '../common/axiosPrivate.js';
 import VideoChat from './VideoChat';
 import CharacterImageUpdate from './CharacterImageUpdate';
 
