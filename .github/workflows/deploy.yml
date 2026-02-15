@@ -132,15 +132,15 @@ jobs:
     
     - name: Health Check Backend
       run: |
-        curl -f ${{ secrets.BACKEND_HEALTH_URL }}/health || exit 1
+        curl -f ${{ vars.BACKEND_HEALTH_URL }}/health || exit 1
     
     - name: Health Check EventServer
       run: |
-        curl -f ${{ secrets.EVENTSERVER_HEALTH_URL }}/health || exit 1
+        curl -f ${{ vars.EVENTSERVER_HEALTH_URL }}/health || exit 1
     
     - name: Health Check Client
       run: |
-        curl -f -s -o /dev/null -w "%{http_code}" ${{ secrets.CLIENT_URL }} | grep -q "200\\|301\\|302" || exit 1
+        curl -f -s -o /dev/null -w "%{http_code}" ${{ vars.CLIENT_URL }} | grep -q "200\\|301\\|302" || exit 1
 
   # ==========================================
   # Job 5: Notify on Success/Failure

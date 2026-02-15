@@ -24,7 +24,7 @@ const NavBar = (props) => {
     const [isOpen, setIsOpen] = useState(false);
     const [profilePhotoUrl, setProfilePhotoUrl] = useState('');
     const toggle = () => setIsOpen(!isOpen);
-    const user = useAuth();
+    const { user } = useAuth();
     const fetchProfilePhoto = async () => {
       try {
         // First check cache
@@ -126,15 +126,15 @@ const MenuToggle = ({ toggle, isOpen }) => {
           pt={[4, 4, 0, 0]}
         >
           <MenuItem to="/">Home</MenuItem>
-          <MenuItem to="/campaigns">Campaigns</MenuItem>
-          <MenuItem to="/friends">Friends</MenuItem>
-          { user ? 
+          { user ?
               <>
+              <MenuItem to="/campaigns">Campaigns</MenuItem>
+              <MenuItem to="/friends">Friends</MenuItem>
               <MenuItem to="/logout">Logout</MenuItem>     
               <MenuItem to="/profile" isLast>
                 <Flex align="center" gap={3}>
-                  <Avatar name={user.user.username} src={profilePhotoUrl || ''} />
-                  <Text>{user.user.username}</Text>
+                  <Avatar name={user.user?.username} src={profilePhotoUrl || ''} />
+                  <Text>{user.user?.username}</Text>
                 </Flex>
               </MenuItem>
               </>
