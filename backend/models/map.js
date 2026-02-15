@@ -60,6 +60,21 @@ const mapSchema = new mongoose.Schema({
         size: { type: Number, default: 40 },
         visible: { type: Boolean, default: true },
         color: { type: String, default: '#ccc' }
+    },
+    // AI Battle Map Generation
+    aiGenerated: { type: Boolean, default: false },
+    aiPrompt: { type: String, default: '' },
+    aiStyle: { 
+        type: String, 
+        enum: ['fantasy', 'scifi', 'modern', 'dungeon'],
+        default: 'fantasy'
+    },
+    generationCost: { type: Number, default: 0 },
+    imageUrl: { type: String, default: '' },
+    status: { 
+        type: String, 
+        enum: ['generating', 'completed', 'failed'], 
+        default: 'completed'
     }
 });
 
