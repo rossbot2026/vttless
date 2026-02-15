@@ -301,16 +301,30 @@ The VTTless Team</p>
             });
             
             if (error) {
-                console.error('Resend email error:', error);
-                
+                // Detailed error logging for diagnosing Resend API failures
+                console.error('Resend API Error:', JSON.stringify(error, null, 2));
+                console.error('EMAIL_FROM:', process.env.EMAIL_FROM);
+                console.error('RESEND_API_KEY exists:', !!process.env.RESEND_API_KEY);
+                console.error('RESEND_API_KEY first 10 chars:', process.env.RESEND_API_KEY?.substring(0, 10));
+
+                // Add specific error message based on error type
+                let errorMessage = 'Failed to send password reset email';
+                if (error?.message?.includes('domain')) {
+                    errorMessage = 'Email domain not verified in Resend';
+                } else if (error?.message?.includes('rate limit')) {
+                    errorMessage = 'Too many requests. Please try again later';
+                } else if (error?.message?.includes('api key')) {
+                    errorMessage = 'Email service configuration error';
+                }
+
                 // Clear reset token on email failure
                 user.passwordResetToken = undefined;
                 user.passwordResetTokenExpiry = undefined;
                 await user.save();
-                
+
                 return res.status(500).json({
                     success: false,
-                    message: 'Failed to send password reset email. Please try again later.',
+                    message: errorMessage,
                     code: 'EMAIL_SEND_ERROR'
                 });
             }
