@@ -41,4 +41,15 @@ router.post('/analyze',
     mapController.analyzeMap
 );
 
+// AI Battle Map Generation routes
+router.post('/generate-ai', 
+    passport.authenticate('jwt', {session: false}), 
+    mapController.generateAIMap
+);
+
+router.get('/:id/generation-status', 
+    passport.authenticate('jwt', {session: false}), 
+    mapController.getGenerationStatus
+);
+
 module.exports = router;
