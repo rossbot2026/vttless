@@ -22,6 +22,24 @@ const upload = multer({
 });
 
 
+// Public endpoint - Get available AI models with pricing (no auth required)
+// MUST be before /:id route to avoid being caught as an ID
+router.get('/ai-models', (req, res) => {
+    try {
+        const models = getSupportedModels();
+        res.json({
+            success: true,
+            models: models
+        });
+    } catch (error) {
+        console.error("Error fetching AI models:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to fetch AI models"
+        });
+    }
+});
+
 // Map routes
 router.get('/', passport.authenticate('jwt', {session: false}), mapController.getAllMaps);
 router.post('/', passport.authenticate('jwt', {session: false}), mapController.createMap);
@@ -53,22 +71,5 @@ router.get('/:id/generation-status',
     passport.authenticate('jwt', {session: false}), 
     mapController.getGenerationStatus
 );
-
-// Public endpoint - Get available AI models with pricing (no auth required)
-router.get('/ai-models', (req, res) => {
-    try {
-        const models = getSupportedModels();
-        res.json({
-            success: true,
-            models: models
-        });
-    } catch (error) {
-        console.error("Error fetching AI models:", error);
-        res.status(500).json({
-            success: false,
-            message: "Failed to fetch AI models"
-        });
-    }
-});
 
 module.exports = router;
