@@ -583,6 +583,7 @@ exports.generateAIMap = async (req, res) => {
         res.status(201).json({
             success: true,
             message: 'AI battle map generated successfully',
+            mapId: newMap._id,
             map: newMap
         });
     } catch (error) {
