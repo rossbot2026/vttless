@@ -13,24 +13,36 @@ const s3 = new AWS.S3({
 });
 
 /**
- * Upload an image from a URL to S3
- * @param {string} imageUrl - The URL of the image to upload
+ * Upload an image from a URL or base64 data to S3
+ * @param {string} imageUrl - The URL or base64 data of the image to upload
  * @param {string} campaignId - The campaign ID for the file path
  * @param {string} fileName - Name for the file
  * @returns {Promise<string>} - The S3 key of the uploaded file
  */
 async function uploadImageFromUrlToS3(imageUrl, campaignId, fileName) {
-    // Fetch the image
-    const response = await fetch(imageUrl);
-    if (!response.ok) {
-        throw new Error(`Failed to fetch image: ${response.statusText}`);
+    let buffer;
+    let contentType = 'image/png';
+    
+    // Check if it's a base64 data URL
+    if (imageUrl.startsWith('data:')) {
+        // Parse base64 data URL
+        const matches = imageUrl.match(/^data:([A-Za-z-+/]+);base64,(.+)$/);
+        if (!matches || matches.length !== 3) {
+            throw new Error('Invalid base64 data URL');
+        }
+        contentType = matches[1];
+        buffer = Buffer.from(matches[2], 'base64');
+    } else {
+        // Fetch from URL
+        const response = await fetch(imageUrl);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch image: ${response.statusText}`);
+        }
+        
+        const arrayBuffer = await response.arrayBuffer();
+        buffer = Buffer.from(arrayBuffer);
+        contentType = response.headers.get('content-type') || 'image/png';
     }
-    
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    
-    // Determine content type
-    const contentType = response.headers.get('content-type') || 'image/png';
     
     // Create S3 key
     const environment = process.env.NODE_ENV || 'development';

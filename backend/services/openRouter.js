@@ -74,7 +74,9 @@ async function generateBattleMap(prompt, style, dimensions) {
         }
 
         // The image is returned as a base64 data URL
-        const imageUrl = message.images[0].imageUrl?.url || message.images[0];
+        // Structure: { index: 0, type: 'image_url', image_url: { url: 'data:image/png;base64,...' } }
+        const imageData = message.images[0];
+        const imageUrl = imageData.image_url?.url || imageData.imageUrl?.url || imageData;
 
         // Estimate cost (FLUX.2 Klein: ~$0.015 per image)
         const estimatedCost = 0.015;
