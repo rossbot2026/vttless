@@ -45,7 +45,18 @@ export const checkGenerationStatus = async (mapId) => {
     return response.data;
 };
 
+/**
+ * Get pre-signed download URL for map image
+ * @param {string} mapId - Map ID
+ * @returns {Promise} Download URL response
+ */
+export const getMapDownloadUrl = async (mapId) => {
+    const response = await api.get(`/maps/${mapId}/download-url`);
+    return response.data;
+};
+
 export default {
     generateAIMap,
-    checkGenerationStatus
+    checkGenerationStatus,
+    getMapDownloadUrl
 };
