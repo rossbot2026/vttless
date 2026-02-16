@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const passport = require('passport');
 const mapController = require("../controllers/Map");
+const { getSupportedModels } = require("../services/openRouter");
 const multer = require('multer');
 
 // Configure multer for temporary file storage
@@ -52,5 +53,22 @@ router.get('/:id/generation-status',
     passport.authenticate('jwt', {session: false}), 
     mapController.getGenerationStatus
 );
+
+// Public endpoint - Get available AI models with pricing (no auth required)
+router.get('/ai-models', (req, res) => {
+    try {
+        const models = getSupportedModels();
+        res.json({
+            success: true,
+            models: models
+        });
+    } catch (error) {
+        console.error("Error fetching AI models:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to fetch AI models"
+        });
+    }
+});
 
 module.exports = router;

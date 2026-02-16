@@ -9,9 +9,10 @@ import { api } from '../common/axiosPrivate';
  * @param {number} gridHeight - Grid height in squares
  * @param {number} gridSize - Size of each grid cell in pixels
  * @param {string} campaignId - Campaign ID
+ * @param {string} model - AI model ID to use (optional)
  * @returns {Promise} API response
  */
-export const generateAIMap = async (name, prompt, style, gridWidth, gridHeight, gridSize, campaignId) => {
+export const generateAIMap = async (name, prompt, style, gridWidth, gridHeight, gridSize, campaignId, model = null) => {
     const response = await api.post('/maps/generate-ai', {
         name,
         prompt,
@@ -19,8 +20,18 @@ export const generateAIMap = async (name, prompt, style, gridWidth, gridHeight, 
         gridWidth,
         gridHeight,
         gridSize,
-        campaign: campaignId
+        campaign: campaignId,
+        ...(model && { model })
     });
+    return response.data;
+};
+
+/**
+ * Get available AI models with pricing
+ * @returns {Promise} List of available models
+ */
+export const getAIModels = async () => {
+    const response = await api.get('/maps/ai-models');
     return response.data;
 };
 
