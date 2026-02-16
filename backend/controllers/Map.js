@@ -568,7 +568,7 @@ exports.generateAIMap = async (req, res) => {
             aiPrompt: prompt,
             aiStyle: style || 'fantasy',
             generationCost: result.cost,
-            imageUrl: s3Key ? `s3://${process.env.AWS_S3_BUCKET_NAME}/${s3Key}` : result.imageUrl,
+            imageUrl: s3Key ? `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}` : result.imageUrl,
             status: 'completed'
         });
 
