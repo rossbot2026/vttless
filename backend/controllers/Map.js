@@ -488,7 +488,8 @@ exports.generateAIMap = async (req, res) => {
             gridWidth, 
             gridHeight, 
             gridSize,
-            campaign 
+            campaign,
+            model 
         } = req.body;
 
         // Validate required fields
@@ -533,11 +534,11 @@ exports.generateAIMap = async (req, res) => {
             return res.status(403).json({ message: "Only the GM can generate AI maps" });
         }
 
-        // Generate the map using OpenRouter
+        // Generate the map using OpenRouter (pass model parameter)
         const result = await generateBattleMap(prompt, style || 'fantasy', {
             width: gridWidth || 10,
             height: gridHeight || 10
-        });
+        }, model);
 
         // Upload the generated image to S3
         let s3Key;
@@ -567,6 +568,7 @@ exports.generateAIMap = async (req, res) => {
             aiGenerated: true,
             aiPrompt: prompt,
             aiStyle: style || 'fantasy',
+            aiModel: result.model || model || 'black-forest-labs/flux.2-klein-4b',
             generationCost: result.cost,
             imageUrl: s3Key ? `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}` : result.imageUrl,
             status: 'completed'

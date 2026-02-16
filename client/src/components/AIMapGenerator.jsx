@@ -38,7 +38,7 @@ import {
     Divider
 } from '@chakra-ui/react';
 import { FiMap, FiGrid, FiZap, FiCheck } from 'react-icons/fi';
-import { generateAIMap, checkGenerationStatus } from '../providers/MapService';
+import { generateAIMap, checkGenerationStatus, getAIModels } from '../providers/MapService';
 
 const GENERATION_COST = 0.015;
 
@@ -67,17 +67,40 @@ const AIMapGenerator = ({ isOpen, onClose, campaignId, onMapGenerated }) => {
         gridHeight: 30,
         gridSize: 40
     });
+    const [selectedModel, setSelectedModel] = useState('');
+    const [aiModels, setAiModels] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [generationStatus, setGenerationStatus] = useState(null);
     const [generatedImage, setGeneratedImage] = useState(null);
     const [showGrid, setShowGrid] = useState(true);
-// Store current map ID for potential future use
+    // Store current map ID for potential future use
     // eslint-disable-next-line no-unused-vars
     const [currentMapId, setCurrentMapId] = useState(null);
     const [error, setError] = useState(null);
     
     const pollIntervalRef = useRef(null);
     const toast = useToast();
+
+    // Fetch available AI models on mount
+    useEffect(() => {
+        const fetchModels = async () => {
+            try {
+                const result = await getAIModels();
+                if (result.success && result.models) {
+                    setAiModels(result.models);
+                    // Set default to first model
+                    if (result.models.length > 0) {
+                        setSelectedModel(result.models[0].id);
+                    }
+                }
+            } catch (err) {
+                console.error('Error fetching AI models:', err);
+                // Fallback to default model if fetch fails
+                setSelectedModel('black-forest-labs/flux.2-klein-4b');
+            }
+        };
+        fetchModels();
+    }, []);
 
     // Reset form when modal opens
     useEffect(() => {
@@ -95,8 +118,12 @@ const AIMapGenerator = ({ isOpen, onClose, campaignId, onMapGenerated }) => {
             setError(null);
             setCurrentMapId(null);
             setShowGrid(true);
+            // Set default model if available
+            if (aiModels.length > 0 && !selectedModel) {
+                setSelectedModel(aiModels[0].id);
+            }
         }
-    }, [isOpen]);
+    }, [isOpen, aiModels, selectedModel]);
 
     // Cleanup polling on unmount
     useEffect(() => {
@@ -147,7 +174,8 @@ const AIMapGenerator = ({ isOpen, onClose, campaignId, onMapGenerated }) => {
                 formData.gridWidth,
                 formData.gridHeight,
                 formData.gridSize,
-                campaignId
+                campaignId,
+                selectedModel
             );
 
             if (result.success && result.mapId) {
@@ -296,6 +324,24 @@ const AIMapGenerator = ({ isOpen, onClose, campaignId, onMapGenerated }) => {
                                     </Select>
                                 </FormControl>
 
+                                <FormControl isRequired>
+                                    <FormLabel>AI Model</FormLabel>
+                                    <Select
+                                        value={selectedModel}
+                                        onChange={(e) => setSelectedModel(e.target.value)}
+                                        isDisabled={isSubmitting}
+                                    >
+                                        {aiModels.map(model => (
+                                            <option key={model.id} value={model.id}>
+                                                {model.name} (${model.pricePerImage.toFixed(3)}/image)
+                                            </option>
+                                        ))}
+                                    </Select>
+                                    <Text fontSize="xs" color="gray.500" mt={1}>
+                                        {aiModels.find(m => m.id === selectedModel)?.description || 'Select an AI model'}
+                                    </Text>
+                                </FormControl>
+
                                 <Divider />
 
                                 <FormControl>
@@ -373,8 +419,12 @@ const AIMapGenerator = ({ isOpen, onClose, campaignId, onMapGenerated }) => {
                                 <Alert status="info" borderRadius="md">
                                     <AlertIcon />
                                     <Box>
-                                        <Text fontWeight="medium">Generation Cost: ~${GENERATION_COST.toFixed(3)}</Text>
-                                        <Text fontSize="xs">Using FLUX.2 Klein AI model</Text>
+                                        <Text fontWeight="medium">
+                                            Generation Cost: ~${(aiModels.find(m => m.id === selectedModel)?.pricePerImage || 0.015).toFixed(3)}
+                                        </Text>
+                                        <Text fontSize="xs">
+                                            Using {aiModels.find(m => m.id === selectedModel)?.name || 'FLUX.2 Klein'} AI model
+                                        </Text>
                                     </Box>
                                 </Alert>
 
