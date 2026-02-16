@@ -29,7 +29,7 @@ async function generateBattleMap(prompt, style, dimensions) {
     }
 
     try {
-        const response = await fetch('https://openrouter.ai/api/v1/images/generations', {
+        const response = await fetch(`${OPENROUTER_API_URL}/chat/completions`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
@@ -39,8 +39,16 @@ async function generateBattleMap(prompt, style, dimensions) {
             },
             body: JSON.stringify({
                 model: 'black-forest-labs/flux.2-klein-4b',
-                prompt: enhancedPrompt,
-                size: size
+                messages: [
+                    {
+                        role: 'user',
+                        content: enhancedPrompt
+                    }
+                ],
+                modalities: ['image'],
+                image_config: {
+                    aspect_ratio: '1:1'
+                }
             })
         });
 
@@ -59,15 +67,20 @@ async function generateBattleMap(prompt, style, dimensions) {
 
         const data = await response.json();
         
-        if (!data.data || !data.data[0] || !data.data[0].url) {
-            throw new Error('Invalid response from OpenRouter API');
+        // Extract image from response (base64 data URL in message.images)
+        const message = data.choices?.[0]?.message;
+        if (!message || !message.images || !message.images[0]) {
+            throw new Error('No image generated from OpenRouter API');
         }
+
+        // The image is returned as a base64 data URL
+        const imageUrl = message.images[0].imageUrl?.url || message.images[0];
 
         // Estimate cost (FLUX.2 Klein: ~$0.015 per image)
         const estimatedCost = 0.015;
 
         return {
-            imageUrl: data.data[0].url,
+            imageUrl: imageUrl,
             cost: estimatedCost,
             status: 'completed'
         };
