@@ -72,4 +72,9 @@ router.get('/:id/generation-status',
     mapController.getGenerationStatus
 );
 
+router.get('/:id/download-url', 
+    passport.authenticate('jwt', {session: false}), 
+    mapController.getMapDownloadUrl
+);
+
 module.exports = router;

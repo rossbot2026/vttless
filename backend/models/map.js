@@ -71,6 +71,7 @@ const mapSchema = new mongoose.Schema({
     },
     generationCost: { type: Number, default: 0 },
     imageUrl: { type: String, default: '' },
+    imageKey: { type: String, default: '' },
     status: { 
         type: String, 
         enum: ['generating', 'completed', 'failed'], 

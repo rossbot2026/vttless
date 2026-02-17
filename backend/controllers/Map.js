@@ -4,12 +4,23 @@ const { analyzeMapImage } = require("../services/mapAnalyzer");
 const { generateBattleMap, isConfigured } = require("../services/openRouter");
 const mongoose = require('mongoose');
 const AWS = require('aws-sdk');
+const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
-// Initialize S3 client
+// Initialize S3 client (for legacy uploads)
 const s3 = new AWS.S3({
     region: process.env.AWS_REGION,
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+});
+
+// Initialize S3 client v3 for signed URLs
+const s3Client = new S3Client({
+    region: process.env.AWS_REGION,
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+    }
 });
 
 /**
@@ -570,6 +581,8 @@ exports.generateAIMap = async (req, res) => {
             aiStyle: style || 'fantasy',
             aiModel: result.model || model || 'black-forest-labs/flux.2-klein-4b',
             generationCost: result.cost,
+            imageKey: s3Key || '',
+            // Keep imageUrl for backward compatibility, but it will be fetched via signed URL
             imageUrl: s3Key ? `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}` : result.imageUrl,
             status: 'completed'
         });
@@ -649,6 +662,58 @@ exports.getGenerationStatus = async (req, res) => {
         });
     } catch (error) {
         console.error("Error fetching generation status:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+// Get pre-signed download URL for map image
+exports.getMapDownloadUrl = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const map = await Map.findById(id);
+        if (!map) {
+            return res.status(404).json({ message: "Map not found" });
+        }
+
+        // Check if user has access to the campaign
+        const campaign = await Campaign.findById(map.campaign);
+        if (!campaign) {
+            return res.status(404).json({ message: "Campaign not found" });
+        }
+
+        const isGM = campaign.gm.toString() === req.user._id.toString();
+        const isPlayer = campaign.players.some(player => 
+            player.toString() === req.user._id.toString()
+        );
+
+        if (!isGM && !isPlayer) {
+            return res.status(403).json({ message: "Access denied" });
+        }
+
+        // Get the S3 key from imageKey or fallback to extracting from imageUrl
+        let key = map.imageKey;
+        if (!key && map.imageUrl) {
+            // Extract key from legacy URL format
+            key = map.imageUrl.split('.com/')[1];
+        }
+
+        if (!key) {
+            return res.status(404).json({ message: "Map image not found" });
+        }
+
+        // Generate pre-signed URL
+        const command = new GetObjectCommand({
+            Bucket: process.env.AWS_S3_BUCKET_NAME,
+            Key: key,
+            ContentType: 'image/png'
+        });
+        
+        const downloadUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+        
+        res.json({ downloadUrl });
+    } catch (error) {
+        console.error("Error generating download URL:", error);
         res.status(500).json({ message: "Internal server error" });
     }
 };

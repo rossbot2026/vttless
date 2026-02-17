@@ -38,7 +38,7 @@ import {
     Divider
 } from '@chakra-ui/react';
 import { FiMap, FiGrid, FiZap, FiCheck } from 'react-icons/fi';
-import { generateAIMap, checkGenerationStatus, getAIModels } from '../providers/MapService';
+import { generateAIMap, checkGenerationStatus, getAIModels, getMapDownloadUrl } from '../providers/MapService';
 
 const GENERATION_COST = 0.015;
 
@@ -209,7 +209,17 @@ const AIMapGenerator = ({ isOpen, onClose, campaignId, onMapGenerated }) => {
                 
                 if (status.status === 'completed') {
                     clearInterval(pollIntervalRef.current);
-                    setGeneratedImage(status.imageUrl);
+                    
+                    // Fetch pre-signed download URL
+                    try {
+                        const { downloadUrl } = await getMapDownloadUrl(mapId);
+                        setGeneratedImage(downloadUrl);
+                    } catch (urlError) {
+                        console.error('Error fetching download URL:', urlError);
+                        // Fallback to direct URL if signed URL fails
+                        setGeneratedImage(status.imageUrl);
+                    }
+                    
                     setGenerationStatus('completed');
                     setIsSubmitting(false);
                     
