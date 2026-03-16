@@ -230,11 +230,7 @@ function gameStateReducer(state, action) {
           ...action.payload
         },
         // Backward compatibility
-        gridSize: action.payload.size || state.gridSize,
-        grid: {
-          ...state.grid,
-          size: action.payload.size || state.grid.size
-        }
+        gridSize: action.payload.size || state.gridSize
       };
 
     case 'TOGGLE_GRID_VISIBILITY':
