@@ -261,20 +261,26 @@ const Play = () => {
         // Load background image
         if (mapData.backgroundImage?.assetId) {
             try {
+                console.log('🖼️ [initializeGameState] Loading background, assetId:', mapData.backgroundImage.assetId);
                 const imageUrl = await loadAssetUrl(mapData.backgroundImage.assetId);
+                console.log('🖼️ [initializeGameState] Got imageUrl:', imageUrl);
                 const img = new Image();
                 img.onload = () => {
-                    setBackground(prev => ({
-                        ...prev,
-                        image: img,
-                        x: mapData.backgroundImage.position.x,
-                        y: mapData.backgroundImage.position.y
-                    }));
+                    console.log('🖼️ [initializeGameState] Image loaded, dimensions:', img.width, 'x', img.height);
+                    console.log('🖼️ [initializeGameState] Background position:', mapData.backgroundImage.position);
+                    // CRITICAL FIX: setBackground expects (imageUrl, position, scale, image) not an object!
+                    setBackground(imageUrl, mapData.backgroundImage.position, 1, img);
+                    console.log('🖼️ [initializeGameState] Called setBackground with correct signature');
+                };
+                img.onerror = () => {
+                    console.error('🖼️ [initializeGameState] Image failed to load from:', imageUrl);
                 };
                 img.src = imageUrl;
             } catch (error) {
                 console.error('Error loading background image:', error);
             }
+        } else {
+            console.log('🖼️ [initializeGameState] No background image in mapData');
         }
 
         // Load legacy tokens
@@ -414,16 +420,25 @@ const Play = () => {
     const handleBackgroundUpdate = useCallback(async (data) => {
         if (data.backgroundImage?.assetId) {
             try {
+                console.log('🎨 [handleBackgroundUpdate] Received background update, assetId:', data.backgroundImage.assetId);
                 const imageUrl = await loadAssetUrl(data.backgroundImage.assetId);
+                console.log('🎨 [handleBackgroundUpdate] Got imageUrl:', imageUrl);
                 const img = new Image();
                 img.onload = () => {
+                    console.log('🎨 [handleBackgroundUpdate] Image loaded, dimensions:', img.width, 'x', img.height);
+                    console.log('🎨 [handleBackgroundUpdate] Setting background with position:', data.backgroundImage.position);
                     setBackground(imageUrl, data.backgroundImage.position, 1, img);
+                    console.log('🎨 [handleBackgroundUpdate] Background set successfully');
+                };
+                img.onerror = () => {
+                    console.error('🎨 [handleBackgroundUpdate] Image failed to load from:', imageUrl);
                 };
                 img.src = imageUrl;
             } catch (error) {
                 console.error('Error loading background image:', error);
             }
         } else if (data.position) {
+            console.log('🎨 [handleBackgroundUpdate] Updating background position only:', data.position);
             updateBackgroundPosition(data.position.x, data.position.y);
         }
     }, [loadAssetUrl, setBackground, updateBackgroundPosition]);

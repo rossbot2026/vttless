@@ -128,6 +128,12 @@ function gameStateReducer(state, action) {
 
     // ====== BACKGROUND ACTIONS ======
     case 'SET_BACKGROUND':
+      console.log('🔄 [GameStateContext] SET_BACKGROUND action received:');
+      console.log('  - imageUrl:', action.payload.imageUrl);
+      console.log('  - position:', action.payload.position);
+      console.log('  - scale:', action.payload.scale);
+      console.log('  - image:', action.payload.image);
+      console.log('  - image dimensions:', action.payload.image ? { width: action.payload.image.naturalWidth, height: action.payload.image.naturalHeight } : 'null');
       return {
         ...state,
         background: {
