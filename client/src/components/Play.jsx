@@ -350,15 +350,8 @@ const Play = () => {
             }
         });
 
-        setGameState(prev => ({
-            ...prev,
-            tokens: allTokens,
-            gridSize: mapData.gridSettings?.size || 40,
-            mapDimensions: {
-                width: (mapData.gridWidth || 20) * (mapData.gridSettings?.size || 40),
-                height: (mapData.gridHeight || 20) * (mapData.gridSettings?.size || 40)
-            }
-        }));
+        // Bulk update tokens using the proper dispatcher
+        bulkUpdateTokens(allTokens);
     };
 
     // Load campaign maps when campaign is loaded and user is GM
@@ -819,17 +812,11 @@ const Play = () => {
                 const tokenOffsetY = worldPos.y - clickedToken.y;
                 setDragOffset({ x: tokenOffsetX, y: tokenOffsetY });
                 
-                setGameState(prev => ({
-                    ...prev,
-                    isDragging: true
-                }));
+                dispatch({ type: 'SET_DRAG_STATE', payload: { isDragging: true, isResizing: false } });
                 markInteractionStart('drag');
             } else if (isSameToken && !canDragToken) {
-                setGameState(prev => ({
-                    ...prev,
-                    selectedToken: null,
-                    isDragging: false
-                }));
+                selectToken(null);
+                dispatch({ type: 'SET_DRAG_STATE', payload: { isDragging: false, isResizing: false } });
             } else {
                 if (canDragToken) {
                     const tokenOffsetX = worldPos.x - clickedToken.x;
@@ -845,11 +832,8 @@ const Play = () => {
             }
         } else {
             if (gameState.selectedToken) {
-                setGameState(prev => ({
-                    ...prev,
-                    selectedToken: null,
-                    isDragging: false
-                }));
+                selectToken(null);
+                dispatch({ type: 'SET_DRAG_STATE', payload: { isDragging: false, isResizing: false } });
             } else if (background.image && isGM) {
                 console.log('🖼️ [handleMouseDown] Starting background drag at screen pos:', { offsetX, offsetY });
                 console.log('🖼️ [handleMouseDown] Current background position:', { x: background.x, y: background.y });
@@ -914,7 +898,7 @@ const Play = () => {
             setGameState(prev => ({
                 ...prev,
                 tokens: prev.tokens.map(token =>
-                    token.id === prev.selectedToken.id
+                    token.id === prev.selectedToken
                         ? { ...token, x: newX, y: newY, width: newWidth, height: newHeight }
                         : token
                 )
@@ -949,7 +933,7 @@ const Play = () => {
             setGameState(prev => ({
                 ...prev,
                 tokens: prev.tokens.map(token =>
-                    token.id === prev.selectedToken.id
+                    token.id === prev.selectedToken
                         ? { ...token, x: newX, y: newY }
                         : token
                 )
@@ -1023,6 +1007,13 @@ const Play = () => {
             try {
                 const currentToken = gameState.tokens.find(token => token.id === gameState.selectedToken);
                 if (currentToken) {
+                    console.log('📍 [handleMouseMove] Saving token position:', {
+                        tokenId: currentToken.id,
+                        characterId: currentToken.characterId,
+                        x: currentToken.x,
+                        y: currentToken.y,
+                        isCharacterInstance: currentToken.isCharacterInstance
+                    });
                     if (currentToken.isCharacterInstance) {
                         await api.patch(`/characters/${currentToken.characterId}/position/${currentMap._id}`, {
                             x: currentToken.x,
