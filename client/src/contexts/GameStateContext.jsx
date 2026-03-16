@@ -121,6 +121,7 @@ function gameStateReducer(state, action) {
       };
 
     case 'BULK_UPDATE_TOKENS':
+      console.log('🔄 [GameStateContext] BULK_UPDATE_TOKENS action - background before:', state.background.imageUrl ? 'PRESENT' : 'MISSING');
       return {
         ...state,
         tokens: action.payload
@@ -148,6 +149,11 @@ function gameStateReducer(state, action) {
       };
 
     case 'UPDATE_BACKGROUND_POSITION':
+      console.log('📍 [GameStateContext] UPDATE_BACKGROUND_POSITION:', {
+        newPosition: { x: action.payload.x, y: action.payload.y },
+        imagePresent: state.background.image ? 'YES' : 'NO',
+        imageUrl: state.background.imageUrl ? 'PRESENT' : 'MISSING'
+      });
       return {
         ...state,
         background: {
@@ -168,6 +174,12 @@ function gameStateReducer(state, action) {
       };
 
     case 'SET_BACKGROUND_DRAGGING':
+      console.log('🎯 [GameStateContext] SET_BACKGROUND_DRAGGING:', {
+        isDragging: action.payload.isDragging,
+        imagePresent: state.background.image ? 'YES' : 'NO',
+        dragStart: action.payload.dragStart,
+        startPosition: action.payload.startPosition
+      });
       return {
         ...state,
         background: {
@@ -316,11 +328,14 @@ function gameStateReducer(state, action) {
 
     // Backward compatibility actions
     case 'SET_GAME_STATE':
-      return {
+      console.log('⚠️ [GameStateContext] SET_GAME_STATE - background before:', state.background.imageUrl ? 'PRESENT' : 'MISSING');
+      const newState = {
         ...state,
         ...action.payload,
         tokens: action.payload.tokens ?? state.tokens
       };
+      console.log('⚠️ [GameStateContext] SET_GAME_STATE - background after:', newState.background.imageUrl ? 'PRESENT' : 'MISSING');
+      return newState;
 
     case 'SET_BACKGROUND_OLD': // For old API
       return {
