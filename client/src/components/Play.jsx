@@ -824,11 +824,8 @@ const Play = () => {
                     setDragOffset({ x: tokenOffsetX, y: tokenOffsetY });
                 }
                 
-                setGameState(prev => ({
-                    ...prev,
-                    selectedToken: clickedToken,
-                    isDragging: canDragToken
-                }));
+                selectToken(clickedToken.id);
+                dispatch({ type: 'SET_DRAG_STATE', payload: { isDragging: canDragToken, isResizing: false } });
             }
         } else {
             if (gameState.selectedToken) {
@@ -895,14 +892,8 @@ const Play = () => {
                     break;
             }
 
-            setGameState(prev => ({
-                ...prev,
-                tokens: prev.tokens.map(token =>
-                    token.id === prev.selectedToken
-                        ? { ...token, x: newX, y: newY, width: newWidth, height: newHeight }
-                        : token
-                )
-            }));
+            // Update token during resize
+            resizeToken(gameState.selectedToken, newWidth, newHeight, newX, newY);
         } else {
             const canvas = canvasRef.current;
             if (canvas && gameState.selectedToken) {
@@ -930,14 +921,8 @@ const Play = () => {
             const newX = snapToGrid(worldPos.x - dragOffset.x, gridSettings.gridSize);
             const newY = snapToGrid(worldPos.y - dragOffset.y, gridSettings.gridSize);
             
-            setGameState(prev => ({
-                ...prev,
-                tokens: prev.tokens.map(token =>
-                    token.id === prev.selectedToken
-                        ? { ...token, x: newX, y: newY }
-                        : token
-                )
-            }));
+            // Update token position during drag
+            moveToken(gameState.selectedToken, newX, newY);
 
             throttledTokenMove({
                 campaignId: campaignId,
@@ -1068,10 +1053,7 @@ const Play = () => {
             }
         }
 
-        setGameState(prev => ({
-            ...prev,
-            isDragging: false
-        }));
+        dispatch({ type: 'SET_DRAG_STATE', payload: { isDragging: false, isResizing: false } });
         console.log('🖼️ [handleMouseUp] Ending background drag');
         setBackgroundDragging(false);
         setResizeState({
@@ -1312,11 +1294,14 @@ const Play = () => {
                 height: newSettings.gridHeight * newSettings.gridSize
             };
             
-            setGameState(prev => ({
-                ...prev,
+            // Update grid settings
+            updateGrid({
+                gridWidth: newSettings.gridWidth,
+                gridHeight: newSettings.gridHeight,
                 gridSize: newSettings.gridSize,
-                mapDimensions: newMapDimensions
-            }));
+                visible: newSettings.visible,
+                color: newSettings.color
+            });
 
             await api.patch(`/maps/${currentMap._id}`, {
                 gridWidth: newSettings.gridWidth,
@@ -1346,14 +1331,8 @@ const Play = () => {
         try {
             const token = gameState.tokens.find(t => t.id === tokenId);
             
-            setGameState(prev => ({
-                ...prev,
-                tokens: prev.tokens.map(token =>
-                    token.id === tokenId
-                        ? { ...token, name: editingName }
-                        : token
-                )
-            }));
+            // Update token name
+            updateToken(tokenId, { name: editingName });
 
             if (token?.isCharacterInstance) {
                 await api.patch(`/characters/${token.characterId}`, {
