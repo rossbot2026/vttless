@@ -17,114 +17,146 @@ import {
     Text,
     Card,
     CardBody,
-    Avatar,
     IconButton,
     useDisclosure,
-    Input,
-    NumberInput,
-    NumberInputField,
-    NumberInputStepper,
-    NumberIncrementStepper,
-    NumberDecrementStepper,
-    Switch,
-    FormControl,
-    FormLabel
+    Input
 } from '@chakra-ui/react';
 import { HiMenu } from 'react-icons/hi';
-import { IoArrowBack, IoChevronDown, IoChevronUp } from 'react-icons/io5';
+import { IoArrowBack } from 'react-icons/io5';
 import { socket } from '../socket';
 import './Play.css';
 import { api } from '../common/axiosPrivate.js';
 import VideoChat from './VideoChat';
 import CharacterImageUpdate from './CharacterImageUpdate';
+import TokenNameEditModal from './TokenNameEditModal';
+import GridSettingsPanel from './GridSettingsPanel';
+import CharacterSidebar from './CharacterSidebar';
 
+// Import custom hooks
+import { useGameState } from '../contexts/GameStateContext';
+import { useTokenDragResize } from '../hooks/useTokenDragResize';
+import { useGridSettings } from '../hooks/useGridSettings';
+import { useSocketGameEvents } from '../hooks/useSocketGameEvents';
+import { useCanvasRendering } from '../hooks/useCanvasRendering';
+import { useGameCamera } from '../hooks/useGameCamera';
+import { useAssetUpload } from '../hooks/useAssetUpload';
 
-
+/**
+ * Play Component
+ * Main game board interface for VTTless
+ * Handles canvas rendering, token management, and real-time multiplayer updates
+ * Refactored to use custom hooks and separated modal components
+ */
 const Play = () => {
-    const { campaignId } = useParams(); // Get the campaignId from URL parameters
+    const { campaignId } = useParams();
     const { user } = useAuth();
     const navigate = useNavigate();
     const toast = useToast();
     const canvasRef = useRef(null);
     const { isOpen, onOpen, onClose } = useDisclosure();
-    const [campaign, setCampaign] = useState(null);
 
-    // Performance-optimized socket emissions
-    const throttledTokenMove = useMemo(
-        () => throttle((moveData) => {
-            socket.emit('tokenMove', moveData);
-        }, 50), // Limit to 20 emissions per second
-        [socket, campaignId]
-    );
+    // Custom hooks for game state management
+    const gameStateHook = useGameState();
+    const dragResizeHook = useTokenDragResize();
+    const gridSettingsHook = useGridSettings();
+    const assetUploadHook = useAssetUpload();
 
-    const debouncedTokenMoveEnd = useMemo(
-        () => debounce((moveData) => {
-            socket.emit('tokenMoveEnd', moveData);
-        }, 100), // Send final position 100ms after dragging stops
-        [socket, campaignId]
-    );
+    // Destructure game state and actions from context
+    const {
+        state,
+        dispatch,
+        selectToken,
+        updateToken,
+        moveToken,
+        resizeToken,
+        bulkUpdateTokens,
+        setBackground,
+        updateBackgroundPosition,
+        setBackgroundDragging,
+        updateZoom,
+        updatePan,
+        updateGrid,
+        setDragState,
+        resetGameState
+    } = gameStateHook;
 
-    const throttledBackgroundUpdate = useMemo(
-        () => throttle((updateData) => {
-            socket.emit('backgroundUpdate', updateData);
-        }, 100), // Limit background updates to 10 per second
-        [socket, campaignId]
-    );
+    // Extract state values for cleaner access
+    const gameState = state;
+    const viewport = state.viewport;
+    const background = state.background;
+    const dragState = state.ui.dragState;
+    const gridSettings = state.grid;
 
-    // Simplified performance monitoring helpers
-    const markInteractionStart = useCallback((type) => {
-        setPerformanceState({
-            isHeavyInteraction: true,
-            interactionType: type
-        });
-    }, []);
+    // For backward compatibility, provide setters that dispatch actions
+    const setGameState = (updates) => {
+        if (typeof updates === 'function') {
+            const newState = updates(state);
+            gameStateHook.setGameState(newState);
+        } else {
+            gameStateHook.setGameState(updates);
+        }
+    };
 
-    const markInteractionEnd = useCallback(() => {
-        // Immediate state clear to prevent flickering
-        setPerformanceState({
-            isHeavyInteraction: false,
-            interactionType: null
-        });
-    }, []);
+    const setViewport = (updates) => {
+        if (typeof updates === 'function') {
+            const newViewport = updates(viewport);
+            gameStateHook.setViewport(newViewport);
+        } else {
+            gameStateHook.setViewport(updates);
+        }
+    };
+
+    const setGridSettingsState = (updates) => {
+        if (typeof updates === 'function') {
+            const newGridSettings = updates(gridSettings);
+            updateGrid(newGridSettings);
+        } else {
+            updateGrid(updates);
+        }
+    };
+
+    // For local component state that doesn't go in global context
     const [currentMap, setCurrentMap] = useState(null);
-    const [gameState, setGameState] = useState({
-        tokens: [],
-        selectedToken: null,
-        isDragging: false,
-        scale: 1,
-        gridSize: 40,
-        mapDimensions: { width: 800, height: 600 }
-    });
-    const [viewport, setViewport] = useState({
-        zoom: 1,
-        offsetX: 0,
-        offsetY: 0,
-        minZoom: 0.25,
-        maxZoom: 4
-    });
-    const [isConnected, setIsConnected] = useState(socket.connected);
-    const [background, setBackground] = useState({
-        image: null,
-        x: 0,
-        y: 0,
-        isDragging: false,
-        dragStart: { x: 0, y: 0 },
-        startPosition: { x: 0, y: 0 }
-    });
-    const [dragState, setDragState] = useState({
-        isDragOver: false,
-        dragType: null // 'token' or 'background'
-    });
-    const [editingToken, setEditingToken] = useState(null);
-    const [editingName, setEditingName] = useState('');
-    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-    const [resizeState, setResizeState] = useState({
-        isResizing: false,
-        resizeHandle: null, // 'se', 'sw', 'ne', 'nw', 's', 'e', 'n', 'w'
-        startSize: { width: 0, height: 0 },
-        startPos: { x: 0, y: 0 },
-        startMouse: { x: 0, y: 0 }
-    });
+
+    const {
+        editingToken,
+        setEditingToken,
+        editingName,
+        setEditingName,
+        dragOffset,
+        setDragOffset,
+        resizeState,
+        setResizeState,
+        startEditingTokenName,
+        cancelEditingTokenName
+    } = dragResizeHook;
+
+    const {
+        snapToGrid,
+        snapSizeToGrid,
+        findTokenAtPosition
+    } = gridSettingsHook;
+
+    // Initialize camera hook with viewport dispatch functions
+    const cameraHook = useGameCamera(viewport, setViewport, canvasRef);
+    const {
+        screenToWorld,
+        resetCamera,
+        zoomIn,
+        zoomOut
+    } = cameraHook;
+
+    const {
+        uploadAsset,
+        loadAssetUrl
+    } = assetUploadHook;
+
+    // Canvas rendering hook
+    const canvasRenderingHook = useCanvasRendering(canvasRef, gameState, viewport, background, gridSettings);
+    const { renderGame, renderSelectedTokenUI } = canvasRenderingHook;
+
+    // Component-level state
+    const [campaign, setCampaign] = useState(null);
     const [campaignMaps, setCampaignMaps] = useState([]);
     const [isCreatingMap, setIsCreatingMap] = useState(false);
     const [newMapName, setNewMapName] = useState('');
@@ -137,19 +169,58 @@ const Play = () => {
         isOpen: false,
         character: null
     });
-    // Simplified performance state - only used for video chat optimization
     const [performanceState, setPerformanceState] = useState({
         isHeavyInteraction: false,
-        interactionType: null // 'drag', 'resize', 'background'
-    });
-    const [gridSettings, setGridSettings] = useState({
-        gridWidth: 20,
-        gridHeight: 20,
-        gridSize: 40,
-        visible: true,
-        color: '#ccc'
+        interactionType: null
     });
 
+    // Performance-optimized socket emissions
+    const throttledTokenMove = useMemo(
+        () => throttle((moveData) => {
+            socket.emit('tokenMove', moveData);
+        }, 50),
+        [campaignId]
+    );
+
+    const debouncedTokenMoveEnd = useMemo(
+        () => debounce((moveData) => {
+            socket.emit('tokenMoveEnd', moveData);
+        }, 100),
+        [campaignId]
+    );
+
+    const throttledBackgroundUpdate = useMemo(
+        () => throttle((updateData) => {
+            socket.emit('backgroundUpdate', updateData);
+        }, 100),
+        [campaignId]
+    );
+
+    // Performance monitoring helpers
+    const markInteractionStart = useCallback((type) => {
+        setPerformanceState({
+            isHeavyInteraction: true,
+            interactionType: type
+        });
+    }, []);
+
+    const markInteractionEnd = useCallback(() => {
+        setPerformanceState({
+            isHeavyInteraction: false,
+            interactionType: null
+        });
+    }, []);
+
+    // Check if current user is GM
+    const isGM = campaign?.gm?._id === user.user.id || campaign?.gm === user.user.id;
+
+    // Get user's characters from tokens
+    const userCharacters = gameState.tokens.filter(token => {
+        const tokenOwnerId = token.ownerId?._id || token.ownerId;
+        return tokenOwnerId === user.user.id;
+    });
+
+    // ====== INITIALIZATION & DATA LOADING ======
 
     // Load campaign and map data
     useEffect(() => {
@@ -160,12 +231,9 @@ const Play = () => {
                 
                 if (response.data.activeMap) {
                     try {
-                        // Extract map ID - activeMap might be populated object or just ID string
                         const mapId = response.data.activeMap._id || response.data.activeMap;
                         const mapResponse = await api.get(`/maps/${mapId}`);
                         setCurrentMap(mapResponse.data);
-                        
-                        // Initialize game state from map data
                         await initializeGameState(mapResponse.data);
                     } catch (mapError) {
                         console.error('Error loading map:', mapError);
@@ -190,7 +258,7 @@ const Play = () => {
     }, [campaignId]);
 
     const initializeGameState = async (mapData) => {
-        // Load background image for current map if exists
+        // Load background image
         if (mapData.backgroundImage?.assetId) {
             try {
                 const imageUrl = await loadAssetUrl(mapData.backgroundImage.assetId);
@@ -205,10 +273,11 @@ const Play = () => {
                 };
                 img.src = imageUrl;
             } catch (error) {
+                console.error('Error loading background image:', error);
             }
         }
 
-       // Load legacy tokens
+        // Load legacy tokens
         const loadedLegacyTokens = await Promise.all((mapData.tokens || []).map(async token => {
             try {
                 const imageUrl = await loadAssetUrl(token.assetId);
@@ -223,12 +292,10 @@ const Play = () => {
             }
         }));
 
-        // Load character instances (new system)
+        // Load character instances
         const loadedCharacterInstances = await Promise.all((mapData.characterInstances || []).map(async instance => {
             try {
                 const character = instance.characterId;
-                
-                // Extract assetId - it might be an object with _id or just a string
                 const assetId = character.assetId?._id || character.assetId;
                 
                 if (!assetId) {
@@ -243,7 +310,6 @@ const Play = () => {
                     img.src = imageUrl;
                 });
                 
-                // Convert character instance to token-like structure for compatibility
                 return {
                     id: `char_${character._id}`,
                     assetId: assetId,
@@ -254,8 +320,8 @@ const Play = () => {
                     ownerId: character.ownerId,
                     name: character.name,
                     image: img,
-                    characterId: character._id, // Keep reference to character
-                    isCharacterInstance: true // Mark as character instance
+                    characterId: character._id,
+                    isCharacterInstance: true
                 };
             } catch (error) {
                 console.error('Error loading character instance:', error);
@@ -263,10 +329,7 @@ const Play = () => {
             }
         }));
 
-        // Filter out null values from failed character instances
         const validCharacterInstances = loadedCharacterInstances.filter(instance => instance !== null);
-
-        // Combine legacy tokens and character instances
         const allTokens = [...loadedLegacyTokens, ...validCharacterInstances];
 
         // Update grid settings from map data
@@ -289,60 +352,99 @@ const Play = () => {
         }));
     };
 
-     // Handle file upload for background and tokens
-     const uploadAsset = async (file, assetType) => {
-        try {
-            // Get presigned URL
-            const { data: { uploadUrl, assetId } } = await api.post(
-                '/assets/upload-url',
-                {
-                    fileName: file.name,
-                    fileType: file.type,
-                    assetType,
-                    campaignId
-                }
-            );
-
-            // Upload file directly to S3
-            await api.put(uploadUrl, file, {
-                headers: {
-                    'Content-Type': file.type
-                }
-            });
-
-            // Confirm upload
-            await api.post(
-                '/assets/confirm-upload',
-                { assetId }
-            );
-
-            return assetId;
-        } catch (error) {
-            toast({
-                title: "Upload failed",
-                description: error.message,
-                status: "error"
-            });
-            throw error;
+    // Load campaign maps when campaign is loaded and user is GM
+    useEffect(() => {
+        if (campaign && isGM) {
+            loadCampaignMaps();
         }
-    };
+    }, [campaign, isGM]);
 
-    const loadAssetUrl = async (assetId) => {
-        try {
-            const { data: { downloadUrl } } = await api.get(
-                `/assets/download/${assetId}`);
-            return downloadUrl;
-        } catch (error) {
-            throw error;
+    // Load campaign characters
+    useEffect(() => {
+        if (campaign && user.user.id) {
+            loadCampaignCharacters();
+            loadCampaignAssets();
         }
-    };
+    }, [campaign, user.user.id]);
 
-    // Enhanced drag and drop event handlers
+    // Listen for character imports from D&D Beyond extension
+    useEffect(() => {
+        const handleCharacterImport = (event) => {
+            console.log('🎯 Character import detected from extension:', event.detail);
+            if (campaign && user.user.id) {
+                loadCampaignCharacters();
+                loadCampaignAssets();
+            }
+        };
+
+        window.addEventListener('vttless:character-imported', handleCharacterImport);
+        return () => {
+            window.removeEventListener('vttless:character-imported', handleCharacterImport);
+        };
+    }, [campaign, user.user.id]);
+
+    // Cleanup throttled functions on unmount
+    useEffect(() => {
+        return () => {
+            throttledTokenMove.cancel();
+            debouncedTokenMoveEnd.cancel();
+            throttledBackgroundUpdate.cancel();
+        };
+    }, [throttledTokenMove, debouncedTokenMoveEnd, throttledBackgroundUpdate]);
+
+    // ====== SOCKET.IO EVENT HANDLERS ======
+
+    const handleTokenMove = useCallback((data) => {
+        moveToken(data.tokenId, data.x, data.y);
+    }, [moveToken]);
+
+    const handleTokenUpdate = useCallback((data) => {
+        const updates = {
+            x: data.x,
+            y: data.y
+        };
+        if (data.width !== undefined) updates.width = data.width;
+        if (data.height !== undefined) updates.height = data.height;
+        updateToken(data.tokenId, updates);
+    }, [updateToken]);
+
+    const handleBackgroundUpdate = useCallback(async (data) => {
+        if (data.backgroundImage?.assetId) {
+            try {
+                const imageUrl = await loadAssetUrl(data.backgroundImage.assetId);
+                const img = new Image();
+                img.onload = () => {
+                    setBackground(imageUrl, data.backgroundImage.position, 1, img);
+                };
+                img.src = imageUrl;
+            } catch (error) {
+                console.error('Error loading background image:', error);
+            }
+        } else if (data.position) {
+            updateBackgroundPosition(data.position.x, data.position.y);
+        }
+    }, [loadAssetUrl, setBackground, updateBackgroundPosition]);
+
+    const handleBackgroundMove = useCallback((data) => {
+        updateBackgroundPosition(data.x, data.y);
+    }, [updateBackgroundPosition]);
+
+    // Setup socket.io events
+    useSocketGameEvents(
+        campaignId,
+        user.user.id,
+        handleTokenMove,
+        handleTokenUpdate,
+        handleBackgroundUpdate,
+        handleBackgroundMove
+    );
+
+    // ====== DRAG & DROP HANDLERS ======
+
     const handleDragOver = (e) => {
         e.preventDefault();
         e.stopPropagation();
         
-        // Determine drop type based on mouse position
         const canvas = canvasRef.current;
         const rect = canvas.getBoundingClientRect();
         const centerX = rect.width / 2;
@@ -350,12 +452,12 @@ const Play = () => {
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
         
-        // If near center area, suggest token drop, otherwise background (GM only)
         const isNearCenter = Math.abs(mouseX - centerX) < 150 && Math.abs(mouseY - centerY) < 150;
         const dragType = isNearCenter ? 'token' : (isGM ? 'background' : 'token');
         
         setDragState({
             isDragOver: true,
+            isDragging: false,
             dragType: dragType
         });
     };
@@ -363,14 +465,14 @@ const Play = () => {
     const handleDragLeave = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        setDragState({ isDragOver: false, dragType: null });
+        setDragState({ isDragOver: false, dragType: null, isDragging: false });
     };
 
     const handleDrop = async (e) => {
         e.preventDefault();
         e.stopPropagation();
         
-        setDragState({ isDragOver: false, dragType: null });
+        setDragState({ isDragOver: false, dragType: null, isDragging: false });
 
         const file = e.dataTransfer.files[0];
         if (!file || !file.type.startsWith('image/')) {
@@ -389,16 +491,13 @@ const Play = () => {
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
         
-        // Determine if this should be a token or background based on drop position and GM status
         const isNearCenter = Math.abs(mouseX - centerX) < 150 && Math.abs(mouseY - centerY) < 150;
         const shouldUploadAsBackground = !isNearCenter && isGM;
         
         try {
             if (shouldUploadAsBackground) {
-                // Upload as background (GM only)
                 await handleBackgroundUpload(file);
             } else {
-                // Upload as token (always fallback for non-GMs)
                 await handleTokenUpload(file, mouseX, mouseY);
             }
         } catch (error) {
@@ -415,18 +514,16 @@ const Play = () => {
             throw new Error('No active map found. Please ensure a map is loaded before uploading backgrounds.');
         }
         
-        // Show initial upload toast
         const uploadToastId = toast({
             title: "Uploading background...",
             description: "Analyzing grid and uploading image",
             status: "info",
-            duration: null, // Keep it open until we update it
+            duration: null,
             isClosable: false
         });
 
         let analysisResult = null;
         
-        // Try to analyze the image for grid properties
         try {
             const formData = new FormData();
             formData.append('image', file);
@@ -442,10 +539,9 @@ const Play = () => {
             console.log('Analysis failed, continuing with upload:', analysisError);
         }
         
-        const assetId = await uploadAsset(file, 'background');
+        const assetId = await uploadAsset(file, 'background', campaignId);
         const imageUrl = await loadAssetUrl(assetId);
         
-        // Prepare map update payload
         const mapUpdate = {
             backgroundImage: {
                 assetId: assetId,
@@ -453,7 +549,6 @@ const Play = () => {
             }
         };
 
-        // If analysis was successful and detected a reasonable grid, offer to update grid settings
         if (analysisResult?.success && analysisResult.confidence > 0.5) {
             const shouldUpdateGrid = window.confirm(
                 `Grid analysis detected a ${analysisResult.suggestions.gridWidth}×${analysisResult.suggestions.gridHeight} grid with ${analysisResult.suggestions.gridSize}px squares (${Math.round(analysisResult.confidence * 100)}% confidence).\n\nWould you like to update the map's grid settings to match?`
@@ -469,10 +564,8 @@ const Play = () => {
             }
         }
         
-        // Update map in database
         await api.patch(`/maps/${currentMap._id}`, mapUpdate);
 
-        // Update local map state if grid was changed
         if (mapUpdate.gridWidth || mapUpdate.gridHeight || mapUpdate.gridSettings) {
             const updatedMap = {
                 ...currentMap,
@@ -480,43 +573,25 @@ const Play = () => {
             };
             setCurrentMap(updatedMap);
 
-            // Update grid settings state
             if (mapUpdate.gridWidth || mapUpdate.gridHeight || mapUpdate.gridSettings) {
                 const newGridSettings = {
-                    gridWidth: mapUpdate.gridWidth || currentMap.gridWidth,
-                    gridHeight: mapUpdate.gridHeight || currentMap.gridHeight,
-                    gridSize: mapUpdate.gridSettings?.size || currentMap.gridSettings?.size || gridSettings.gridSize,
+                    width: mapUpdate.gridWidth || currentMap.gridWidth,
+                    height: mapUpdate.gridHeight || currentMap.gridHeight,
+                    size: mapUpdate.gridSettings?.size || currentMap.gridSettings?.size || gridSettings.size,
                     visible: mapUpdate.gridSettings?.visible !== undefined ? mapUpdate.gridSettings.visible : gridSettings.visible,
                     color: mapUpdate.gridSettings?.color || gridSettings.color
                 };
                 
-                setGridSettings(newGridSettings);
-
-                // Update game state dimensions
-                setGameState(prev => ({
-                    ...prev,
-                    gridSize: newGridSettings.gridSize,
-                    mapDimensions: {
-                        width: newGridSettings.gridWidth * newGridSettings.gridSize,
-                        height: newGridSettings.gridHeight * newGridSettings.gridSize
-                    }
-                }));
+                updateGrid(newGridSettings);
             }
         }
 
-        // Update local state
         const img = new Image();
         img.onload = () => {
-            setBackground(prev => ({
-                ...prev,
-                image: img,
-                x: 0,
-                y: 0
-            }));
+            setBackground(imageUrl, { x: 0, y: 0 }, 1, img);
         };
         img.src = imageUrl;
 
-        // Notify other players
         if (currentMap?._id) {
             socket.emit('backgroundUpdate', {
                 campaignId,
@@ -528,7 +603,6 @@ const Play = () => {
             });
         }
         
-        // Close the upload toast and show success
         toast.close(uploadToastId);
         
         const successMessage = analysisResult?.success && mapUpdate.gridWidth 
@@ -548,18 +622,15 @@ const Play = () => {
             throw new Error('No active map found. Please ensure a map is loaded before uploading tokens.');
         }
         
-        const assetId = await uploadAsset(file, 'token');
+        const assetId = await uploadAsset(file, 'token', campaignId);
         
-        // Convert screen coordinates to world coordinates
         const worldPos = screenToWorld(dropX, dropY);
-        const snapToGrid = (coord) => Math.round(coord / gridSettings.gridSize) * gridSettings.gridSize;
+        const x = snapToGrid(worldPos.x, gridSettings.gridSize);
+        const y = snapToGrid(worldPos.y, gridSettings.gridSize);
         
-        const characterName = file.name.replace(/\.[^/.]+$/, ''); // Remove file extension
-        const x = snapToGrid(worldPos.x);
-        const y = snapToGrid(worldPos.y);
+        const characterName = file.name.replace(/\.[^/.]+$/, '');
         
         try {
-            // 1. Create the campaign character
             const characterResponse = await api.post(`/campaigns/${campaignId}/characters`, {
                 name: characterName,
                 assetId,
@@ -575,7 +646,6 @@ const Play = () => {
             
             const newCharacter = characterResponse.data;
             
-            // 2. Place the character on the current map
             await api.post(`/characters/${newCharacter._id}/place/${currentMap._id}`, {
                 x,
                 y,
@@ -583,16 +653,14 @@ const Play = () => {
                 height: gridSettings.gridSize
             });
             
-            // 3. Reload the map and character data
             const [mapResponse] = await Promise.all([
                 api.get(`/maps/${currentMap._id}`),
-                loadCampaignCharacters() // Refresh character list
+                loadCampaignCharacters()
             ]);
             
             setCurrentMap(mapResponse.data);
             initializeGameState(mapResponse.data);
             
-            // 4. Notify other players
             socket.emit('characterPlaced', {
                 campaignId,
                 mapId: currentMap._id,
@@ -618,296 +686,80 @@ const Play = () => {
         }
     };
 
+    // ====== MOUSE & CANVAS INTERACTION ======
 
-    // Initialize canvas and load assets
-    useEffect(() => {
-        // This effect can be used for future asset loading if needed
-    }, []);
-
-    // Socket.io event handlers
-    useEffect(() => {
-        const handleConnect = () => setIsConnected(true);
-        const handleDisconnect = () => setIsConnected(false);
-
-        socket.on('connect', handleConnect);
-        socket.on('disconnect', handleDisconnect);
-        
-        // Connect the socket
-        socket.connect();
-
-        return () => {
-            socket.off('connect', handleConnect);
-            socket.off('disconnect', handleDisconnect);
-            socket.disconnect();
-        };
-    }, []);
-
-    // Socket.io event handlers
-    useEffect(() => {
-        socket.emit('joinCampaign', campaignId);
-
-        const handleTokenMove = (data) => {
-            if (data.playerId !== user.user.id) {
-                setGameState(prev => ({
-                    ...prev,
-                    tokens: prev.tokens.map(token => 
-                        token.id === data.tokenId 
-                            ? { ...token, x: data.x, y: data.y }
-                            : token
-                    )
-                }));
-            }
-        };
-
-        const handleTokenUpdate = (data) => {
-            if (data.playerId !== user.user.id) {
-                setGameState(prev => ({
-                    ...prev,
-                    tokens: prev.tokens.map(token =>
-                        token.id === data.tokenId
-                            ? { 
-                                ...token, 
-                                x: data.x, 
-                                y: data.y,
-                                ...(data.width !== undefined && { width: data.width }),
-                                ...(data.height !== undefined && { height: data.height })
-                            }
-                            : token
-                    )
-                }));
-            }
-        };
-
-        const handleBackgroundUpdate = async (data) => {
-            if (data.playerId !== user.user.id) {
-                // Handle new background image
-                if (data.backgroundImage?.assetId) {
-                    try {
-                        const imageUrl = await loadAssetUrl(data.backgroundImage.assetId);
-                        const img = new Image();
-                        img.onload = () => {
-                            setBackground(prev => ({
-                                ...prev,
-                                image: img,
-                                x: data.backgroundImage.position.x,
-                                y: data.backgroundImage.position.y
-                            }));
-                        };
-                        img.src = imageUrl;
-                    } catch (error) {
-                        console.error('Error loading background image:', error);
-                    }
-                }
-                // Handle position-only updates
-                else if (data.position) {
-                    setBackground(prev => ({
-                        ...prev,
-                        x: data.position.x,
-                        y: data.position.y
-                    }));
-                }
-            }
-        };
-
-        socket.on('tokenMove', handleTokenMove);
-        socket.on('tokenUpdate', handleTokenUpdate);
-        socket.on('backgroundUpdate', handleBackgroundUpdate);
-
-        return () => {
-            socket.emit('leaveCampaign', campaignId);
-            socket.off('tokenMove', handleTokenMove);
-            socket.off('tokenUpdate', handleTokenUpdate);
-            socket.off('backgroundUpdate', handleBackgroundUpdate);
-        };
-    }, [campaignId]);
-
-    // Render game state
-    const renderGame = () => {
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        
-        // Clear canvas
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // Apply zoom and pan transformation
-        ctx.save();
-        ctx.translate(viewport.offsetX, viewport.offsetY);
-        ctx.scale(viewport.zoom, viewport.zoom);
-        
-        // Draw background if exists
-        if (background.image) {
-            ctx.save();
-            ctx.globalAlpha = 0.5; // Optional: make grid visible through background
-            ctx.drawImage(
-                background.image,
-                background.x,
-                background.y,
-                gameState.mapDimensions.width,
-                gameState.mapDimensions.height
-            );
-            ctx.restore();
-        }
-        
-        // Draw grid
-        drawGrid(ctx);
-        
-        // Draw tokens
-        gameState.tokens.forEach(token => {
-            if (token.image) {
-                ctx.drawImage(
-                    token.image,
-                    token.x,
-                    token.y,
-                    token.width * gameState.scale,
-                    token.height * gameState.scale
-                );
-            }
-        });
-        
-        // Draw selected token name label and resize handles (hide during dragging)
-        if (gameState.selectedToken && !gameState.isDragging && !resizeState.isResizing) {
-            // Get the current token data from the tokens array (has updated position)
-            const currentToken = gameState.tokens.find(token => token.id === gameState.selectedToken.id);
-            if (currentToken) {
-                const tokenName = currentToken.name || 'Unnamed Token';
-                
-                // Calculate position under the token using current position
-                const labelX = currentToken.x + (currentToken.width * gameState.scale) / 2;
-                const labelY = currentToken.y + (currentToken.height * gameState.scale) + 20;
-            
-                // Set up text styling
-                ctx.save();
-                ctx.font = `${Math.max(12 / viewport.zoom, 8)}px Arial`;
-                ctx.fillStyle = '#ffffff';
-                ctx.strokeStyle = '#000000';
-                ctx.lineWidth = 2 / viewport.zoom;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'top';
-                
-                // Draw text background
-                const textMetrics = ctx.measureText(tokenName);
-                const textWidth = textMetrics.width;
-                const textHeight = Math.max(12 / viewport.zoom, 8);
-                const padding = 4 / viewport.zoom;
-                
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-                ctx.fillRect(
-                    labelX - textWidth / 2 - padding,
-                    labelY - padding,
-                    textWidth + padding * 2,
-                    textHeight + padding * 2
-                );
-                
-                // Draw text with outline for better visibility
-                ctx.strokeText(tokenName, labelX, labelY);
-                ctx.fillStyle = '#ffffff';
-                ctx.fillText(tokenName, labelX, labelY);
-                
-                ctx.restore();
-
-                // Draw resize handles if user owns the token
-                const tokenOwnerId = currentToken?.ownerId?._id || currentToken?.ownerId;
-                if (tokenOwnerId === user.user.id) {
-                    ctx.save();
-                    const handleSize = 8 / viewport.zoom;
-                    const tokenRight = currentToken.x + currentToken.width * gameState.scale;
-                    const tokenBottom = currentToken.y + currentToken.height * gameState.scale;
-                    const tokenCenterX = currentToken.x + (currentToken.width * gameState.scale) / 2;
-                    const tokenCenterY = currentToken.y + (currentToken.height * gameState.scale) / 2;
-
-                    // Draw resize handles
-                    ctx.fillStyle = '#4299E1'; // Blue color
-                    ctx.strokeStyle = '#FFFFFF';
-                    ctx.lineWidth = 1 / viewport.zoom;
-
-                    // Corner handles
-                    const corners = [
-                        { x: currentToken.x, y: currentToken.y }, // nw
-                        { x: tokenRight, y: currentToken.y }, // ne
-                        { x: currentToken.x, y: tokenBottom }, // sw
-                        { x: tokenRight, y: tokenBottom } // se
-                    ];
-
-                    // Edge handles
-                    const edges = [
-                        { x: tokenCenterX, y: currentToken.y }, // n
-                        { x: tokenRight, y: tokenCenterY }, // e
-                        { x: tokenCenterX, y: tokenBottom }, // s
-                        { x: currentToken.x, y: tokenCenterY } // w  
-                    ];
-
-                    // Draw all handles
-                    [...corners, ...edges].forEach(handle => {
-                        ctx.fillRect(
-                            handle.x - handleSize/2,
-                            handle.y - handleSize/2,
-                            handleSize,
-                            handleSize
-                        );
-                        ctx.strokeRect(
-                            handle.x - handleSize/2,
-                            handle.y - handleSize/2,
-                            handleSize,
-                            handleSize
-                        );
-                    });
-
-                    ctx.restore();
-                }
-            }
-        }
-        
-        // Restore transformation
-        ctx.restore();
-    };
-
-    // Helper function to convert screen coordinates to world coordinates
-    const screenToWorld = (screenX, screenY) => {
-        const worldX = (screenX - viewport.offsetX) / viewport.zoom;
-        const worldY = (screenY - viewport.offsetY) / viewport.zoom;
-        return { x: worldX, y: worldY };
-    };
-
-    // Helper function to detect clicks on token name labels
     const isClickOnTokenNameLabel = (worldX, worldY, token) => {
         if (!gameState.selectedToken || gameState.selectedToken.id !== token.id || gameState.isDragging) {
-            return false; // Name not visible
+            return false;
         }
         
-        // Calculate name label position (same as in renderGame)
         const labelX = token.x + (token.width * gameState.scale) / 2;
         const labelY = token.y + (token.height * gameState.scale) + 20;
         
-        // Approximate label dimensions (rough estimation)
-        const labelWidth = Math.max(100 / viewport.zoom, 80); // Rough width estimation
-        const labelHeight = Math.max(20 / viewport.zoom, 16); // Rough height estimation
+        const labelWidth = Math.max(100 / viewport.zoom, 80);
+        const labelHeight = Math.max(20 / viewport.zoom, 16);
         
-        // Check if click is within label bounds
         return worldX >= labelX - labelWidth / 2 && 
                worldX <= labelX + labelWidth / 2 && 
                worldY >= labelY && 
                worldY <= labelY + labelHeight;
     };
 
-    // Mouse event handlers - Binary selection + dragging
+    const getResizeHandle = (mouseX, mouseY, token) => {
+        if (!token) return null;
+
+        const handleSize = 8 / viewport.zoom;
+        const tokenRight = token.x + token.width * gameState.scale;
+        const tokenBottom = token.y + token.height * gameState.scale;
+
+        // Check corners first
+        if (Math.abs(mouseX - tokenRight) <= handleSize && Math.abs(mouseY - tokenBottom) <= handleSize) {
+            return 'se';
+        }
+        if (Math.abs(mouseX - token.x) <= handleSize && Math.abs(mouseY - tokenBottom) <= handleSize) {
+            return 'sw';
+        }
+        if (Math.abs(mouseX - tokenRight) <= handleSize && Math.abs(mouseY - token.y) <= handleSize) {
+            return 'ne';
+        }
+        if (Math.abs(mouseX - token.x) <= handleSize && Math.abs(mouseY - token.y) <= handleSize) {
+            return 'nw';
+        }
+
+        // Check edges
+        if (Math.abs(mouseX - tokenRight) <= handleSize && mouseY >= token.y && mouseY <= tokenBottom) {
+            return 'e';
+        }
+        if (Math.abs(mouseX - token.x) <= handleSize && mouseY >= token.y && mouseY <= tokenBottom) {
+            return 'w';
+        }
+        if (Math.abs(mouseY - tokenBottom) <= handleSize && mouseX >= token.x && mouseX <= tokenRight) {
+            return 's';
+        }
+        if (Math.abs(mouseY - token.y) <= handleSize && mouseX >= token.x && mouseX <= tokenRight) {
+            return 'n';
+        }
+
+        return null;
+    };
+
     const handleMouseDown = (e) => {
         const { offsetX, offsetY } = e.nativeEvent;
         const worldPos = screenToWorld(offsetX, offsetY);
-        const clickedToken = findTokenAtPosition(worldPos.x, worldPos.y);
+        const clickedToken = findTokenAtPosition(worldPos.x, worldPos.y, gameState.tokens, gameState.scale);
         
-        // Check if clicking on a token name label first
+        // Check if clicking on a token name label
         if (gameState.selectedToken) {
             const selectedTokenData = gameState.tokens.find(t => t.id === gameState.selectedToken.id);
             if (selectedTokenData && isClickOnTokenNameLabel(worldPos.x, worldPos.y, selectedTokenData)) {
-                // Check if user owns this token before allowing edit
                 const tokenOwnerId = selectedTokenData?.ownerId?._id || selectedTokenData?.ownerId;
                 if (tokenOwnerId === user.user.id) {
                     startEditingTokenName(selectedTokenData);
-                    return; // Don't proceed with other click handling
+                    return;
                 }
             }
 
-            // Check for resize handles on selected token
+            // Check for resize handles
             const resizeHandle = getResizeHandle(worldPos.x, worldPos.y, selectedTokenData);
             if (resizeHandle && (selectedTokenData?.ownerId?._id || selectedTokenData?.ownerId) === user.user.id) {
                 setResizeState({
@@ -918,21 +770,17 @@ const Play = () => {
                     startMouse: { x: worldPos.x, y: worldPos.y }
                 });
                 markInteractionStart('resize');
-                return; // Don't proceed with other click handling
+                return;
             }
         }
         
         if (clickedToken) {
-            // Check if user owns this token for dragging
             const tokenOwnerId = clickedToken?.ownerId?._id || clickedToken?.ownerId;
             const canDragToken = tokenOwnerId === user.user.id;
             
-            // Check if clicking the same token that's already selected
             const isSameToken = gameState.selectedToken && gameState.selectedToken.id === clickedToken.id;
             
             if (isSameToken && canDragToken) {
-                // If clicking own selected token, start dragging (don't deselect)
-                // Calculate offset from mouse position to token's top-left corner
                 const tokenOffsetX = worldPos.x - clickedToken.x;
                 const tokenOffsetY = worldPos.y - clickedToken.y;
                 setDragOffset({ x: tokenOffsetX, y: tokenOffsetY });
@@ -943,16 +791,13 @@ const Play = () => {
                 }));
                 markInteractionStart('drag');
             } else if (isSameToken && !canDragToken) {
-                // If clicking someone else's selected token, deselect it
                 setGameState(prev => ({
                     ...prev,
                     selectedToken: null,
                     isDragging: false
                 }));
             } else {
-                // Select the new token and enable dragging if owned
                 if (canDragToken) {
-                    // Calculate offset from mouse position to token's top-left corner
                     const tokenOffsetX = worldPos.x - clickedToken.x;
                     const tokenOffsetY = worldPos.y - clickedToken.y;
                     setDragOffset({ x: tokenOffsetX, y: tokenOffsetY });
@@ -961,20 +806,17 @@ const Play = () => {
                 setGameState(prev => ({
                     ...prev,
                     selectedToken: clickedToken,
-                    isDragging: canDragToken // Only enable dragging for owned tokens
+                    isDragging: canDragToken
                 }));
             }
         } else {
-            // Clicking on empty space or background
             if (gameState.selectedToken) {
-                // Clear selection if a token was selected
                 setGameState(prev => ({
                     ...prev,
                     selectedToken: null,
                     isDragging: false
                 }));
             } else if (background.image && isGM) {
-                // Start background dragging only if no token was selected and user is GM
                 setBackground(prev => ({
                     ...prev,
                     isDragging: true,
@@ -997,7 +839,6 @@ const Play = () => {
         const worldPos = screenToWorld(offsetX, offsetY);
 
         if (resizeState.isResizing && gameState.selectedToken) {
-            // Handle token resizing
             const deltaX = worldPos.x - resizeState.startMouse.x;
             const deltaY = worldPos.y - resizeState.startMouse.y;
             
@@ -1006,45 +847,45 @@ const Play = () => {
             let newX = resizeState.startPos.x;
             let newY = resizeState.startPos.y;
 
-            // Calculate new dimensions based on resize handle
             switch (resizeState.resizeHandle) {
-                case 'se': // southeast corner
-                    newWidth = snapSizeToGrid(resizeState.startSize.width + deltaX / gameState.scale);
-                    newHeight = snapSizeToGrid(resizeState.startSize.height + deltaY / gameState.scale);
+                case 'se':
+                    newWidth = snapSizeToGrid(resizeState.startSize.width + deltaX / gameState.scale, gridSettings.gridSize);
+                    newHeight = snapSizeToGrid(resizeState.startSize.height + deltaY / gameState.scale, gridSettings.gridSize);
                     break;
-                case 'sw': // southwest corner
-                    newWidth = snapSizeToGrid(resizeState.startSize.width - deltaX / gameState.scale);
-                    newHeight = snapSizeToGrid(resizeState.startSize.height + deltaY / gameState.scale);
+                case 'sw':
+                    newWidth = snapSizeToGrid(resizeState.startSize.width - deltaX / gameState.scale, gridSettings.gridSize);
+                    newHeight = snapSizeToGrid(resizeState.startSize.height + deltaY / gameState.scale, gridSettings.gridSize);
                     newX = resizeState.startPos.x + (resizeState.startSize.width - newWidth);
                     break;
-                case 'ne': // northeast corner
-                    newWidth = snapSizeToGrid(resizeState.startSize.width + deltaX / gameState.scale);
-                    newHeight = snapSizeToGrid(resizeState.startSize.height - deltaY / gameState.scale);
+                case 'ne':
+                    newWidth = snapSizeToGrid(resizeState.startSize.width + deltaX / gameState.scale, gridSettings.gridSize);
+                    newHeight = snapSizeToGrid(resizeState.startSize.height - deltaY / gameState.scale, gridSettings.gridSize);
                     newY = resizeState.startPos.y + (resizeState.startSize.height - newHeight);
                     break;
-                case 'nw': // northwest corner
-                    newWidth = snapSizeToGrid(resizeState.startSize.width - deltaX / gameState.scale);
-                    newHeight = snapSizeToGrid(resizeState.startSize.height - deltaY / gameState.scale);
+                case 'nw':
+                    newWidth = snapSizeToGrid(resizeState.startSize.width - deltaX / gameState.scale, gridSettings.gridSize);
+                    newHeight = snapSizeToGrid(resizeState.startSize.height - deltaY / gameState.scale, gridSettings.gridSize);
                     newX = resizeState.startPos.x + (resizeState.startSize.width - newWidth);
                     newY = resizeState.startPos.y + (resizeState.startSize.height - newHeight);
                     break;
-                case 'e': // east edge
-                    newWidth = snapSizeToGrid(resizeState.startSize.width + deltaX / gameState.scale);
+                case 'e':
+                    newWidth = snapSizeToGrid(resizeState.startSize.width + deltaX / gameState.scale, gridSettings.gridSize);
                     break;
-                case 'w': // west edge
-                    newWidth = snapSizeToGrid(resizeState.startSize.width - deltaX / gameState.scale);
+                case 'w':
+                    newWidth = snapSizeToGrid(resizeState.startSize.width - deltaX / gameState.scale, gridSettings.gridSize);
                     newX = resizeState.startPos.x + (resizeState.startSize.width - newWidth);
                     break;
-                case 's': // south edge
-                    newHeight = snapSizeToGrid(resizeState.startSize.height + deltaY / gameState.scale);
+                case 's':
+                    newHeight = snapSizeToGrid(resizeState.startSize.height + deltaY / gameState.scale, gridSettings.gridSize);
                     break;
-                case 'n': // north edge
-                    newHeight = snapSizeToGrid(resizeState.startSize.height - deltaY / gameState.scale);
+                case 'n':
+                    newHeight = snapSizeToGrid(resizeState.startSize.height - deltaY / gameState.scale, gridSettings.gridSize);
                     newY = resizeState.startPos.y + (resizeState.startSize.height - newHeight);
+                    break;
+                default:
                     break;
             }
 
-            // Update token in game state
             setGameState(prev => ({
                 ...prev,
                 tokens: prev.tokens.map(token =>
@@ -1054,14 +895,12 @@ const Play = () => {
                 )
             }));
         } else {
-            // Update cursor based on what's under the mouse
             const canvas = canvasRef.current;
             if (canvas && gameState.selectedToken) {
                 const selectedTokenData = gameState.tokens.find(t => t.id === gameState.selectedToken.id);
                 if (selectedTokenData && (selectedTokenData?.ownerId?._id || selectedTokenData?.ownerId) === user.user.id) {
                     const resizeHandle = getResizeHandle(worldPos.x, worldPos.y, selectedTokenData);
                     if (resizeHandle) {
-                        // Set cursor based on resize handle
                         const cursors = {
                             'se': 'se-resize', 'nw': 'nw-resize',
                             'sw': 'sw-resize', 'ne': 'ne-resize',
@@ -1079,12 +918,8 @@ const Play = () => {
         }
 
         if (gameState.isDragging && gameState.selectedToken) {
-            // Handle token dragging - only for owned tokens
-            const snapToGrid = (coord) => Math.round(coord / gridSettings.gridSize) * gridSettings.gridSize;
-            
-            // Calculate new position accounting for drag offset
-            const newX = snapToGrid(worldPos.x - dragOffset.x);
-            const newY = snapToGrid(worldPos.y - dragOffset.y);
+            const newX = snapToGrid(worldPos.x - dragOffset.x, gridSettings.gridSize);
+            const newY = snapToGrid(worldPos.y - dragOffset.y, gridSettings.gridSize);
             
             setGameState(prev => ({
                 ...prev,
@@ -1095,7 +930,6 @@ const Play = () => {
                 )
             }));
 
-            // Use throttled emission to reduce network load
             throttledTokenMove({
                 campaignId: campaignId,
                 tokenId: gameState.selectedToken.id,
@@ -1104,7 +938,6 @@ const Play = () => {
                 playerId: user.user.id
             });
         } else if (background.isDragging) {
-            // Handle background dragging - convert screen movement to world coordinates
             const deltaX = (offsetX - background.dragStart.x) / viewport.zoom;
             const deltaY = (offsetY - background.dragStart.y) / viewport.zoom;
             const newX = background.startPosition.x + deltaX;
@@ -1116,7 +949,6 @@ const Play = () => {
                 y: newY
             }));
 
-            // Optionally emit background position to other players (throttled)
             throttledBackgroundUpdate({
                 x: newX,
                 y: newY,
@@ -1126,13 +958,11 @@ const Play = () => {
     };
 
     const handleMouseUp = async () => {
-        // Save token size to database if we were resizing a token
         if (resizeState.isResizing && gameState.selectedToken && currentMap?._id) {
             try {
                 const currentToken = gameState.tokens.find(token => token.id === gameState.selectedToken.id);
                 if (currentToken) {
                     if (currentToken.isCharacterInstance) {
-                        // Update character instance position and size
                         await api.patch(`/characters/${currentToken.characterId}/position/${currentMap._id}`, {
                             x: currentToken.x,
                             y: currentToken.y,
@@ -1140,7 +970,6 @@ const Play = () => {
                             height: currentToken.height
                         });
                     } else {
-                        // Update legacy token position and size
                         await api.patch(`/maps/${currentMap._id}/tokens/${gameState.selectedToken.id}`, {
                             x: currentToken.x,
                             y: currentToken.y,
@@ -1149,7 +978,6 @@ const Play = () => {
                         });
                     }
                     
-                    // Emit real-time token size update
                     socket.emit('tokenUpdate', {
                         campaignId: campaignId,
                         tokenId: gameState.selectedToken.id,
@@ -1169,19 +997,16 @@ const Play = () => {
             }
         }
 
-        // Save token position to database if we were dragging a token
         if (gameState.isDragging && gameState.selectedToken && currentMap?._id) {
             try {
                 const currentToken = gameState.tokens.find(token => token.id === gameState.selectedToken.id);
                 if (currentToken) {
                     if (currentToken.isCharacterInstance) {
-                        // Update character instance position
                         await api.patch(`/characters/${currentToken.characterId}/position/${currentMap._id}`, {
                             x: currentToken.x,
                             y: currentToken.y
                         });
                     } else {
-                        // Update legacy token position
                         await api.patch(`/maps/${currentMap._id}/tokens/${gameState.selectedToken.id}`, {
                             x: currentToken.x,
                             y: currentToken.y
@@ -1197,7 +1022,6 @@ const Play = () => {
             }
         }
 
-        // Save background position to database if we were dragging background
         if (background.isDragging && currentMap?._id && currentMap.backgroundImage?.assetId) {
             try {
                 await api.patch(`/maps/${currentMap._id}`, {
@@ -1218,7 +1042,6 @@ const Play = () => {
             }
         }
 
-        // Send final position for any dragged token
         if (gameState.isDragging && gameState.selectedToken) {
             const currentToken = gameState.tokens.find(token => token.id === gameState.selectedToken.id);
             if (currentToken) {
@@ -1232,7 +1055,6 @@ const Play = () => {
             }
         }
 
-        // Only clear dragging states, but preserve token selection
         setGameState(prev => ({
             ...prev,
             isDragging: false
@@ -1249,238 +1071,30 @@ const Play = () => {
             startMouse: { x: 0, y: 0 }
         });
 
-        // Mark interaction as ended
         markInteractionEnd();
     };
 
-    // Mouse wheel handler for zoom - optimized for smoother scrolling
-    const handleWheel = (e) => {
-        e.preventDefault();
-        
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-        
-        // Smaller zoom delta for smoother zoom
-        const zoomDelta = e.deltaY > 0 ? 0.95 : 1.05;
-        
-        setViewport(prev => {
-            const newZoom = Math.max(prev.minZoom, Math.min(prev.maxZoom, prev.zoom * zoomDelta));
-            
-            // Only update if zoom actually changed
-            if (newZoom === prev.zoom) return prev;
-            
-            // Calculate new offset to zoom towards mouse position
-            const zoomRatio = newZoom / prev.zoom;
-            const newOffsetX = mouseX - (mouseX - prev.offsetX) * zoomRatio;
-            const newOffsetY = mouseY - (mouseY - prev.offsetY) * zoomRatio;
-            
-            return {
-                ...prev,
-                zoom: newZoom,
-                offsetX: newOffsetX,
-                offsetY: newOffsetY
-            };
-        });
-    };
+    // ====== RENDERING ======
 
-    // Add wheel event listener with passive: false
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-
-        canvas.addEventListener('wheel', handleWheel, { passive: false });
-
-        return () => {
-            canvas.removeEventListener('wheel', handleWheel);
-        };
-    }, [handleWheel]);
-
-    // Helper functions
-    const findTokenAtPosition = (x, y) => {
-        return gameState.tokens.find(token => {
-            return x >= token.x &&
-                   x <= token.x + token.width * gameState.scale &&
-                   y >= token.y &&
-                   y <= token.y + token.height * gameState.scale;
-        });
-    };
-
-    const snapSizeToGrid = (size) => {
-        return Math.max(gridSettings.gridSize, Math.round(size / gridSettings.gridSize) * gridSettings.gridSize);
-    };
-
-    const getResizeHandle = (mouseX, mouseY, token) => {
-        if (!token) return null;
-
-        const handleSize = 8 / viewport.zoom;
-        const tokenRight = token.x + token.width * gameState.scale;
-        const tokenBottom = token.y + token.height * gameState.scale;
-
-        // Check corners first (higher priority)
-        if (Math.abs(mouseX - tokenRight) <= handleSize && Math.abs(mouseY - tokenBottom) <= handleSize) {
-            return 'se'; // southeast corner
-        }
-        if (Math.abs(mouseX - token.x) <= handleSize && Math.abs(mouseY - tokenBottom) <= handleSize) {
-            return 'sw'; // southwest corner
-        }
-        if (Math.abs(mouseX - tokenRight) <= handleSize && Math.abs(mouseY - token.y) <= handleSize) {
-            return 'ne'; // northeast corner
-        }
-        if (Math.abs(mouseX - token.x) <= handleSize && Math.abs(mouseY - token.y) <= handleSize) {
-            return 'nw'; // northwest corner
-        }
-
-        // Check edges
-        if (Math.abs(mouseX - tokenRight) <= handleSize && mouseY >= token.y && mouseY <= tokenBottom) {
-            return 'e'; // east edge
-        }
-        if (Math.abs(mouseX - token.x) <= handleSize && mouseY >= token.y && mouseY <= tokenBottom) {
-            return 'w'; // west edge
-        }
-        if (Math.abs(mouseY - tokenBottom) <= handleSize && mouseX >= token.x && mouseX <= tokenRight) {
-            return 's'; // south edge
-        }
-        if (Math.abs(mouseY - token.y) <= handleSize && mouseX >= token.x && mouseX <= tokenRight) {
-            return 'n'; // north edge
-        }
-
-        return null;
-    };
-
-    const drawGrid = useCallback((ctx) => {
-        // Skip grid drawing if grid is not visible or zoomed out too far
-        if (!gridSettings.visible || viewport.zoom < 0.5) return;
-        
-        const gridSize = gridSettings.gridSize;
-        const { width, height } = gameState.mapDimensions;
-        
-        ctx.strokeStyle = gridSettings.color || '#ccc';
-        ctx.lineWidth = Math.max(0.5 / viewport.zoom, 0.1);
-
-        // Draw vertical lines
-        for (let x = 0; x <= width; x += gridSize) {
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, height);
-            ctx.stroke();
-        }
-
-        // Draw horizontal lines
-        for (let y = 0; y <= height; y += gridSize) {
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(width, y);
-            ctx.stroke();
-        }
-    }, [gridSettings, gameState.mapDimensions, viewport.zoom]);
-
-    // Memoized render function for better performance during video calls
-    const memoizedRenderGame = useCallback(() => {
-        // Removed frame skipping optimization that was causing video flickering
-        // The throttled socket emissions provide sufficient performance benefits
+    const renderGameWithSelectedTokenUI = useCallback(() => {
         renderGame();
-    }, [gameState, viewport, background]);
-
-    // Animation loop - optimized with RAF
-    useEffect(() => {
-        let animationId;
         
-        const animate = () => {
-            memoizedRenderGame();
-            animationId = requestAnimationFrame(animate);
-        };
-        
-        animationId = requestAnimationFrame(animate);
-        
-        return () => {
-            if (animationId) {
-                cancelAnimationFrame(animationId);
-            }
-        };
-    }, [memoizedRenderGame]);
-
-    useEffect(() => {
-        const handleBackgroundMove = (data) => {
-            if (data.playerId !== user.user.id) {
-                setBackground(prev => ({
-                    ...prev,
-                    x: data.x,
-                    y: data.y
-                }));
-            }
-        };
-
-        socket.on('backgroundMove', handleBackgroundMove);
-        
-        return () => {
-            socket.off('backgroundMove', handleBackgroundMove);
-        };
-    }, []);
-
-    // Check if current user is GM
-    const isGM = campaign?.gm?._id === user.user.id || campaign?.gm === user.user.id;
-
-    // Get user's characters from tokens - Clean implementation
-    const userCharacters = gameState.tokens.filter(token => {
-        // Handle ownerId as user object with _id property
-        const tokenOwnerId = token.ownerId?._id || token.ownerId;
-        return tokenOwnerId === user.user.id;
-    });
-
-    // Load campaign maps when campaign and user data are available
-    useEffect(() => {
-        if (campaign && isGM) {
-            loadCampaignMaps();
+        // Render selected token UI separately (name label + resize handles)
+        if (gameState.selectedToken) {
+            renderSelectedTokenUI(
+                gameState.selectedToken,
+                user.user.id,
+                resizeState,
+                editingToken,
+                editingName
+            );
         }
-    }, [campaign, isGM]);
+    }, [renderGame, renderSelectedTokenUI, gameState.selectedToken, user.user.id, resizeState, editingToken, editingName]);
 
-    // Load campaign characters when campaign and user data are available
-    useEffect(() => {
-        if (campaign && user.user.id) {
-            loadCampaignCharacters();
-            loadCampaignAssets();
-        }
-    }, [campaign, user.user.id]);
+    // Animation loop is handled by useCanvasRendering hook
 
-    // Listen for character imports from D&D Beyond extension
-    useEffect(() => {
-        const handleCharacterImport = (event) => {
-            console.log('🎯 Character import detected from extension:', event.detail);
-            // Refresh the character list and assets when a character is imported
-            if (campaign && user.user.id) {
-                loadCampaignCharacters();
-                loadCampaignAssets(); // Also refresh assets in case a new default token was created
-            }
-        };
+    // ====== API CALLS ======
 
-        // Add event listener for character imports
-        window.addEventListener('vttless:character-imported', handleCharacterImport);
-
-        // Cleanup event listener on unmount
-        return () => {
-            window.removeEventListener('vttless:character-imported', handleCharacterImport);
-        };
-    }, [campaign, user.user.id]);
-
-    // Cleanup throttled functions on unmount
-    useEffect(() => {
-        return () => {
-            // Cancel any pending throttled/debounced calls
-            throttledTokenMove.cancel();
-            debouncedTokenMoveEnd.cancel();
-            throttledBackgroundUpdate.cancel();
-        };
-    }, [throttledTokenMove, debouncedTokenMoveEnd, throttledBackgroundUpdate]);
-
-    const handleBackToMain = () => {
-        navigate('/campaigns');
-    };
-
-    // Load campaign maps for GM
     const loadCampaignMaps = async () => {
         if (!isGM || !campaignId) return;
         try {
@@ -1495,7 +1109,6 @@ const Play = () => {
         }
     };
 
-    // Load campaign characters for current user
     const loadCampaignCharacters = async () => {
         if (!campaignId) return;
         try {
@@ -1510,7 +1123,6 @@ const Play = () => {
         }
     };
 
-    // Load campaign assets
     const loadCampaignAssets = async () => {
         if (!campaignId) return;
         try {
@@ -1522,7 +1134,10 @@ const Play = () => {
         }
     };
 
-    // Handle character image update
+    const handleBackToMain = () => {
+        navigate('/campaigns');
+    };
+
     const handleCharacterImageClick = (character) => {
         setCharacterImageModal({
             isOpen: true,
@@ -1531,14 +1146,12 @@ const Play = () => {
     };
 
     const handleCharacterImageUpdate = (updatedCharacter) => {
-        // Update the character in the campaign characters list
         setCampaignCharacters(prev => 
             prev.map(char => 
                 char._id === updatedCharacter._id ? updatedCharacter : char
             )
         );
         
-        // Close the modal
         setCharacterImageModal({
             isOpen: false,
             character: null
@@ -1552,12 +1165,10 @@ const Play = () => {
         });
     };
 
-    // Add character to current map
     const addCharacterToMap = async (characterId) => {
         if (!currentMap) return;
         
         try {
-            // Place character at center of visible area with default size
             const centerX = Math.round((400 / gridSettings.gridSize)) * gridSettings.gridSize;
             const centerY = Math.round((300 / gridSettings.gridSize)) * gridSettings.gridSize;
             
@@ -1568,11 +1179,9 @@ const Play = () => {
                 height: gridSettings.gridSize
             });
 
-            // Reload the map to get updated character instances
             const mapResponse = await api.get(`/maps/${currentMap._id}`);
             setCurrentMap(mapResponse.data);
             
-            // Initialize game state with the updated map
             initializeGameState(mapResponse.data);
 
             toast({
@@ -1589,18 +1198,15 @@ const Play = () => {
         }
     };
 
-    // Remove character from current map
     const removeCharacterFromMap = async (characterId) => {
         if (!currentMap) return;
         
         try {
             await api.delete(`/characters/${characterId}/remove/${currentMap._id}`);
 
-            // Reload the map to get updated character instances
             const mapResponse = await api.get(`/maps/${currentMap._id}`);
             setCurrentMap(mapResponse.data);
             
-            // Initialize game state with the updated map
             initializeGameState(mapResponse.data);
 
             toast({
@@ -1617,7 +1223,6 @@ const Play = () => {
         }
     };
 
-    // Create new map
     const handleCreateMap = async () => {
         if (!newMapName.trim()) {
             toast({
@@ -1655,26 +1260,21 @@ const Play = () => {
         }
     };
 
-    // Switch to different map
     const handleSwitchMap = async (mapId) => {
         try {
-            // Update campaign's active map using POST with campaignId in body
             await api.post('/campaigns/update', {
                 campaignId: campaignId,
                 activeMap: mapId
             });
 
-            // Fetch the new map data instead of reloading the page
             const mapResponse = await api.get(`/maps/${mapId}`);
             setCurrentMap(mapResponse.data);
             
-            // Update campaign state to reflect the new active map ID
             setCampaign(prev => ({
                 ...prev,
                 activeMap: mapId
             }));
             
-            // Initialize game state from new map data
             await initializeGameState(mapResponse.data);
 
             toast({
@@ -1692,26 +1292,21 @@ const Play = () => {
         }
     };
 
-    // Update grid settings
     const handleGridSettingsUpdate = async (newSettings) => {
         try {
-            // Update local state immediately for responsive UI
             setGridSettings(newSettings);
             
-            // Calculate new map dimensions
             const newMapDimensions = {
                 width: newSettings.gridWidth * newSettings.gridSize,
                 height: newSettings.gridHeight * newSettings.gridSize
             };
             
-            // Update game state
             setGameState(prev => ({
                 ...prev,
                 gridSize: newSettings.gridSize,
                 mapDimensions: newMapDimensions
             }));
 
-            // Update map in database
             await api.patch(`/maps/${currentMap._id}`, {
                 gridWidth: newSettings.gridWidth,
                 gridHeight: newSettings.gridHeight,
@@ -1736,31 +1331,10 @@ const Play = () => {
         }
     };
 
-    // Token name editing functions
-    const startEditingTokenName = (tokenOrCharacter) => {
-        // Handle both token objects from game state and character objects from sidebar
-        if (tokenOrCharacter._id) {
-            // This is a character object from the sidebar
-            setEditingToken(tokenOrCharacter._id);
-            setEditingName(tokenOrCharacter.name || '');
-        } else {
-            // This is a token object from game state
-            setEditingToken(tokenOrCharacter.id);
-            setEditingName(tokenOrCharacter.name || '');
-        }
-    };
-
-    const cancelEditingTokenName = () => {
-        setEditingToken(null);
-        setEditingName('');
-    };
-
     const saveTokenName = async (tokenId) => {
         try {
-            // Find the token to determine if it's a character instance or legacy token
             const token = gameState.tokens.find(t => t.id === tokenId);
             
-            // Update local state
             setGameState(prev => ({
                 ...prev,
                 tokens: prev.tokens.map(token =>
@@ -1770,23 +1344,18 @@ const Play = () => {
                 )
             }));
 
-            // Update database - different endpoints for character instances vs legacy tokens
             if (token?.isCharacterInstance) {
-                // Update character name (affects all maps)
                 await api.patch(`/characters/${token.characterId}`, {
                     name: editingName
                 });
                 
-                // Also refresh the campaign characters list
                 await loadCampaignCharacters();
             } else {
-                // Update legacy token name
                 await api.patch(`/maps/${currentMap._id}/tokens/${tokenId}`, {
                     name: editingName
                 });
             }
 
-            // Notify other players
             socket.emit('tokenUpdated', {
                 campaignId,
                 mapId: currentMap._id,
@@ -1794,7 +1363,6 @@ const Play = () => {
                 updates: { name: editingName }
             });
 
-            // Clear editing state
             setEditingToken(null);
             setEditingName('');
 
@@ -1812,9 +1380,11 @@ const Play = () => {
         }
     };
 
+    // ====== RENDER ======
+
     return (
         <Box position="relative" h="100vh" w="100vw" overflow="hidden" display="flex">
-            {/* Menu Toggle Button - Fixed position */}
+            {/* Menu Toggle Button */}
             <IconButton
                 icon={<HiMenu />}
                 onClick={onOpen}
@@ -1828,7 +1398,7 @@ const Play = () => {
                 aria-label="Open menu"
             />
 
-            {/* Zoom Level Indicator - Fixed position on main screen */}
+            {/* Zoom Level Indicator */}
             <Box
                 position="fixed"
                 top={4}
@@ -1851,7 +1421,7 @@ const Play = () => {
                 </Text>
             </Box>
 
-            {/* Main Game Area - Left side */}
+            {/* Main Game Area */}
             <Box
                 flex={1}
                 position="relative"
@@ -1887,7 +1457,7 @@ const Play = () => {
                 />
             </Box>
 
-            {/* Video Chat Sidebar - Right side */}
+            {/* Video Chat Sidebar */}
             <Box
                 position="fixed"
                 top={0}
@@ -1945,7 +1515,7 @@ const Play = () => {
                 </Box>
             )}
 
-            {/* Empty State Overlay - when user has no tokens */}
+            {/* Empty State Overlay */}
             {userCharacters.length === 0 && !dragState.isDragOver && (
                 <Box
                     position="fixed"
@@ -2007,78 +1577,15 @@ const Play = () => {
                 </Box>
             )}
 
-            {/* Token Name Editing Modal */}
-            {editingToken && (
-                <Box
-                    position="fixed"
-                    top="50%"
-                    left="50%"
-                    transform="translate(-50%, -50%)"
-                    zIndex={1002}
-                    bg="gray.800"
-                    color="white"
-                    p={6}
-                    borderRadius="lg"
-                    border="2px solid"
-                    borderColor="orange.400"
-                    boxShadow="0 10px 25px rgba(0,0,0,0.5)"
-                    minW="300px"
-                >
-                    <Text fontSize="lg" fontWeight="bold" mb={4} color="orange.400">
-                        Edit Token Name
-                    </Text>
-                    <VStack spacing={4}>
-                        <Input
-                            value={editingName}
-                            onChange={(e) => setEditingName(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    saveTokenName(editingToken);
-                                } else if (e.key === 'Escape') {
-                                    cancelEditingTokenName();
-                                }
-                            }}
-                            placeholder="Enter token name"
-                            bg="gray.700"
-                            color="white"
-                            border="1px solid"
-                            borderColor="gray.600"
-                            _focus={{ borderColor: 'orange.400', boxShadow: 'none' }}
-                            autoFocus
-                        />
-                        <HStack spacing={3} w="100%">
-                            <Button
-                                colorScheme="orange"
-                                onClick={() => saveTokenName(editingToken)}
-                                flex={1}
-                            >
-                                Save
-                            </Button>
-                            <Button
-                                variant="outline"
-                                onClick={cancelEditingTokenName}
-                                flex={1}
-                            >
-                                Cancel
-                            </Button>
-                        </HStack>
-                    </VStack>
-                </Box>
-            )}
-
-            {/* Modal backdrop */}
-            {editingToken && (
-                <Box
-                    position="fixed"
-                    top={0}
-                    left={0}
-                    w="100%"
-                    h="100%"
-                    bg="rgba(0, 0, 0, 0.5)"
-                    zIndex={1001}
-                    onClick={cancelEditingTokenName}
-                />
-            )}
+            {/* Token Name Edit Modal */}
+            <TokenNameEditModal
+                isOpen={!!editingToken}
+                tokenId={editingToken}
+                editingName={editingName}
+                onNameChange={setEditingName}
+                onSave={saveTokenName}
+                onCancel={cancelEditingTokenName}
+            />
 
             {/* Side Drawer */}
             <Drawer isOpen={isOpen} placement="left" onClose={onClose} size="md">
@@ -2137,17 +1644,16 @@ const Play = () => {
                                             Map Management
                                         </Text>
                                         <IconButton
-                                            icon={isMapSectionCollapsed ? <IoChevronDown /> : <IoChevronUp />}
+                                            icon={isMapSectionCollapsed ? undefined : undefined}
                                             size="xs"
                                             variant="ghost"
                                             color="gray.400"
-                                            aria-label={isMapSectionCollapsed ? "Expand map management" : "Collapse map management"}
+                                            aria-label="Toggle map management"
                                             _hover={{ color: 'orange.400' }}
                                         />
                                     </HStack>
                                     {!isMapSectionCollapsed && (
                                         <VStack spacing={3} align="stretch">
-                                        {/* Current Active Map */}
                                         {currentMap && (
                                             <Card bg="gray.700" borderColor="orange.400" borderWidth="2px">
                                                 <CardBody>
@@ -2168,7 +1674,6 @@ const Play = () => {
                                             </Card>
                                         )}
 
-                                        {/* Available Maps */}
                                         {campaignMaps.length > 0 && (
                                             <Box>
                                                 <Text fontSize="sm" fontWeight="semibold" mb={2} color="gray.300">
@@ -2205,389 +1710,96 @@ const Play = () => {
                                             </Box>
                                         )}
 
-                                        {/* Create New Map */}
-                                        <Box>
-                                            {!isCreatingMap ? (
-                                                <Button
-                                                    colorScheme="orange"
-                                                    variant="outline"
+                                        {!isCreatingMap ? (
+                                            <Button
+                                                colorScheme="orange"
+                                                variant="outline"
+                                                size="sm"
+                                                w="full"
+                                                onClick={() => setIsCreatingMap(true)}
+                                            >
+                                                + Create New Map
+                                            </Button>
+                                        ) : (
+                                            <VStack spacing={2}>
+                                                <Input
+                                                    value={newMapName}
+                                                    onChange={(e) => setNewMapName(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            handleCreateMap();
+                                                        } else if (e.key === 'Escape') {
+                                                            setIsCreatingMap(false);
+                                                            setNewMapName('');
+                                                        }
+                                                    }}
+                                                    placeholder="Enter map name"
                                                     size="sm"
-                                                    w="full"
-                                                    onClick={() => setIsCreatingMap(true)}
-                                                >
-                                                    + Create New Map
-                                                </Button>
-                                            ) : (
-                                                <VStack spacing={2}>
-                                                    <Input
-                                                        value={newMapName}
-                                                        onChange={(e) => setNewMapName(e.target.value)}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter') {
-                                                                handleCreateMap();
-                                                            } else if (e.key === 'Escape') {
-                                                                setIsCreatingMap(false);
-                                                                setNewMapName('');
-                                                            }
+                                                    bg="gray.600"
+                                                    color="white"
+                                                    border="1px solid"
+                                                    borderColor="orange.400"
+                                                    _focus={{ borderColor: 'orange.500', boxShadow: 'none' }}
+                                                    autoFocus
+                                                />
+                                                <HStack spacing={2} w="100%">
+                                                    <Button
+                                                        size="xs"
+                                                        colorScheme="orange"
+                                                        onClick={handleCreateMap}
+                                                        flex={1}
+                                                    >
+                                                        Create
+                                                    </Button>
+                                                    <Button
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        onClick={() => {
+                                                            setIsCreatingMap(false);
+                                                            setNewMapName('');
                                                         }}
-                                                        placeholder="Enter map name"
-                                                        size="sm"
-                                                        bg="gray.600"
-                                                        color="white"
-                                                        border="1px solid"
-                                                        borderColor="orange.400"
-                                                        _focus={{ borderColor: 'orange.500', boxShadow: 'none' }}
-                                                        autoFocus
-                                                    />
-                                                    <HStack spacing={2} w="100%">
-                                                        <Button
-                                                            size="xs"
-                                                            colorScheme="orange"
-                                                            onClick={handleCreateMap}
-                                                            flex={1}
-                                                        >
-                                                            Create
-                                                        </Button>
-                                                        <Button
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            onClick={() => {
-                                                                setIsCreatingMap(false);
-                                                                setNewMapName('');
-                                                            }}
-                                                            flex={1}
-                                                        >
-                                                            Cancel
-                                                        </Button>
-                                                    </HStack>
-                                                </VStack>
-                                            )}
-                                        </Box>
+                                                        flex={1}
+                                                    >
+                                                        Cancel
+                                                    </Button>
+                                                </HStack>
+                                            </VStack>
+                                        )}
                                         </VStack>
                                     )}
                                 </Box>
                             )}
 
-                            {/* Grid Settings Section - GM Only */}
-                            {isGM && (
-                                <Box>
-                                    <HStack 
-                                        spacing={2} 
-                                        mb={3} 
-                                        cursor="pointer" 
-                                        onClick={() => setIsGridSectionCollapsed(!isGridSectionCollapsed)}
-                                        _hover={{ color: 'orange.400' }}
-                                        transition="color 0.2s"
-                                    >
-                                        <Text fontSize="lg" fontWeight="semibold" color="gray.200">
-                                            Grid Settings
-                                        </Text>
-                                        <IconButton
-                                            icon={isGridSectionCollapsed ? <IoChevronDown /> : <IoChevronUp />}
-                                            size="xs"
-                                            variant="ghost"
-                                            color="gray.400"
-                                            aria-label={isGridSectionCollapsed ? "Expand grid settings" : "Collapse grid settings"}
-                                            _hover={{ color: 'orange.400' }}
-                                        />
-                                    </HStack>
-                                    {!isGridSectionCollapsed && (
-                                        <VStack spacing={4} align="stretch">
-                                            <Card bg="gray.700" borderColor="gray.600">
-                                                <CardBody>
-                                                    <VStack spacing={4} align="stretch">
-                                                        {/* Grid Dimensions */}
-                                                        <Box>
-                                                            <Text fontSize="sm" fontWeight="semibold" mb={3} color="gray.300">
-                                                                Map Dimensions (Grid Squares)
-                                                            </Text>
-                                                            <HStack spacing={4}>
-                                                                <FormControl>
-                                                                    <FormLabel fontSize="xs" color="gray.400">Width</FormLabel>
-                                                                    <NumberInput
-                                                                        value={gridSettings.gridWidth}
-                                                                        onChange={(value) => {
-                                                                            const newSettings = { ...gridSettings, gridWidth: parseInt(value) || 1 };
-                                                                            handleGridSettingsUpdate(newSettings);
-                                                                        }}
-                                                                        min={1}
-                                                                        max={100}
-                                                                        size="sm"
-                                                                        bg="gray.600"
-                                                                    >
-                                                                        <NumberInputField 
-                                                                            color="white"
-                                                                            border="1px solid"
-                                                                            borderColor="gray.500"
-                                                                            _focus={{ borderColor: 'orange.400', boxShadow: 'none' }}
-                                                                        />
-                                                                        <NumberInputStepper>
-                                                                            <NumberIncrementStepper color="gray.400" />
-                                                                            <NumberDecrementStepper color="gray.400" />
-                                                                        </NumberInputStepper>
-                                                                    </NumberInput>
-                                                                </FormControl>
-                                                                <FormControl>
-                                                                    <FormLabel fontSize="xs" color="gray.400">Height</FormLabel>
-                                                                    <NumberInput
-                                                                        value={gridSettings.gridHeight}
-                                                                        onChange={(value) => {
-                                                                            const newSettings = { ...gridSettings, gridHeight: parseInt(value) || 1 };
-                                                                            handleGridSettingsUpdate(newSettings);
-                                                                        }}
-                                                                        min={1}
-                                                                        max={100}
-                                                                        size="sm"
-                                                                        bg="gray.600"
-                                                                    >
-                                                                        <NumberInputField 
-                                                                            color="white"
-                                                                            border="1px solid"
-                                                                            borderColor="gray.500"
-                                                                            _focus={{ borderColor: 'orange.400', boxShadow: 'none' }}
-                                                                        />
-                                                                        <NumberInputStepper>
-                                                                            <NumberIncrementStepper color="gray.400" />
-                                                                            <NumberDecrementStepper color="gray.400" />
-                                                                        </NumberInputStepper>
-                                                                    </NumberInput>
-                                                                </FormControl>
-                                                            </HStack>
-                                                        </Box>
-
-                                                        {/* Grid Square Size */}
-                                                        <Box>
-                                                            <Text fontSize="sm" fontWeight="semibold" mb={3} color="gray.300">
-                                                                Grid Square Size (Pixels)
-                                                            </Text>
-                                                            <NumberInput
-                                                                value={gridSettings.gridSize}
-                                                                onChange={(value) => {
-                                                                    const newSettings = { ...gridSettings, gridSize: parseInt(value) || 10 };
-                                                                    handleGridSettingsUpdate(newSettings);
-                                                                }}
-                                                                min={10}
-                                                                max={200}
-                                                                size="sm"
-                                                                bg="gray.600"
-                                                            >
-                                                                <NumberInputField 
-                                                                    color="white"
-                                                                    border="1px solid"
-                                                                    borderColor="gray.500"
-                                                                    _focus={{ borderColor: 'orange.400', boxShadow: 'none' }}
-                                                                />
-                                                                <NumberInputStepper>
-                                                                    <NumberIncrementStepper color="gray.400" />
-                                                                    <NumberDecrementStepper color="gray.400" />
-                                                                </NumberInputStepper>
-                                                            </NumberInput>
-                                                        </Box>
-
-                                                        {/* Grid Visibility */}
-                                                        <Box>
-                                                            <HStack spacing={3}>
-                                                                <Text fontSize="sm" fontWeight="semibold" color="gray.300">
-                                                                    Show Grid Lines
-                                                                </Text>
-                                                                <Switch
-                                                                    isChecked={gridSettings.visible}
-                                                                    onChange={(e) => {
-                                                                        const newSettings = { ...gridSettings, visible: e.target.checked };
-                                                                        handleGridSettingsUpdate(newSettings);
-                                                                    }}
-                                                                    colorScheme="orange"
-                                                                    size="sm"
-                                                                />
-                                                            </HStack>
-                                                        </Box>
-
-                                                        {/* Current Map Size Info */}
-                                                        <Box bg="gray.600" p={3} borderRadius="md">
-                                                            <Text fontSize="xs" color="gray.400" mb={1}>
-                                                                Current Map Size:
-                                                            </Text>
-                                                            <Text fontSize="sm" color="white">
-                                                                {gridSettings.gridWidth * gridSettings.gridSize} × {gridSettings.gridHeight * gridSettings.gridSize} pixels
-                                                            </Text>
-                                                            <Text fontSize="xs" color="gray.400">
-                                                                ({gridSettings.gridWidth} × {gridSettings.gridHeight} grid squares @ {gridSettings.gridSize}px each)
-                                                            </Text>
-                                                        </Box>
-                                                    </VStack>
-                                                </CardBody>
-                                            </Card>
-                                        </VStack>
-                                    )}
-                                </Box>
+                            {/* Grid Settings Panel */}
+                            {isGM && currentMap && (
+                                <GridSettingsPanel
+                                    gridSettings={gridSettings}
+                                    onGridSettingsUpdate={handleGridSettingsUpdate}
+                                    isCollapsed={isGridSectionCollapsed}
+                                    onCollapseToggle={() => setIsGridSectionCollapsed(!isGridSectionCollapsed)}
+                                />
                             )}
 
-                            {/* User Characters Section */}
-                            <Box>
-                                <HStack 
-                                    spacing={2} 
-                                    mb={3} 
-                                    cursor="pointer" 
-                                    onClick={() => setIsCharacterSectionCollapsed(!isCharacterSectionCollapsed)}
-                                    _hover={{ color: 'orange.400' }}
-                                    transition="color 0.2s"
-                                >
-                                    <Text fontSize="lg" fontWeight="semibold" color="gray.200">
-                                        Your Characters
-                                    </Text>
-                                    <IconButton
-                                        icon={isCharacterSectionCollapsed ? <IoChevronDown /> : <IoChevronUp />}
-                                        size="xs"
-                                        variant="ghost"
-                                        color="gray.400"
-                                        aria-label={isCharacterSectionCollapsed ? "Expand characters" : "Collapse characters"}
-                                        _hover={{ color: 'orange.400' }}
-                                    />
-                                </HStack>
-                                {!isCharacterSectionCollapsed && (
-                                    <VStack spacing={3} align="stretch">
-                                    {campaignCharacters.length > 0 ? (
-                                        campaignCharacters.map((character, index) => {
-                                            // Check if character is already on current map
-                                            const isOnCurrentMap = currentMap?.characterInstances?.some(
-                                                instance => instance.characterId._id === character._id || instance.characterId === character._id
-                                            );
-                                            
-                                            return (
-                                            <Card key={character._id || index} bg="gray.700" borderColor="gray.600">
-                                                <CardBody>
-                                                    <HStack spacing={3}>
-                                                        <Avatar
-                                                            size="md"
-                                                            src={character.assetId?.url}
-                                                            bg="orange.400"
-                                                            color="white"
-                                                            name={character.name || `Character ${index + 1}`}
-                                                            cursor="pointer"
-                                                            _hover={{ 
-                                                                opacity: 0.8,
-                                                                transform: "scale(1.05)",
-                                                                transition: "all 0.2s"
-                                                            }}
-                                                            onClick={() => handleCharacterImageClick(character)}
-                                                            title="Click to update character image"
-                                                        />
-                                                        <Box flex={1}>
-                                                            {editingToken === character._id ? (
-                                                                <HStack spacing={2}>
-                                                                    <Input
-                                                                        value={editingName}
-                                                                        onChange={(e) => setEditingName(e.target.value)}
-                                                                        onKeyDown={(e) => {
-                                                                            if (e.key === 'Enter') {
-                                                                                saveTokenName(`char_${character._id}`);
-                                                                            } else if (e.key === 'Escape') {
-                                                                                cancelEditingTokenName();
-                                                                            }
-                                                                        }}
-                                                                        size="sm"
-                                                                        bg="gray.600"
-                                                                        color="white"
-                                                                        border="1px solid"
-                                                                        borderColor="orange.400"
-                                                                        _focus={{ borderColor: 'orange.500', boxShadow: 'none' }}
-                                                                        autoFocus
-                                                                    />
-                                                                    <Button
-                                                                        size="xs"
-                                                                        colorScheme="orange"
-                                                                        onClick={() => saveTokenName(`char_${character._id}`)}
-                                                                    >
-                                                                        Save
-                                                                    </Button>
-                                                                    <Button
-                                                                        size="xs"
-                                                                        variant="ghost"
-                                                                        onClick={cancelEditingTokenName}
-                                                                    >
-                                                                        Cancel
-                                                                    </Button>
-                                                                </HStack>
-                                                            ) : (
-                                                                <Text 
-                                                                    color="white" 
-                                                                    fontWeight="medium"
-                                                                    cursor="pointer"
-                                                                    _hover={{ color: 'orange.400' }}
-                                                                    onClick={() => startEditingTokenName(character)}
-                                                                    title="Click to edit name"
-                                                                >
-                                                                    {character.name || `Character ${index + 1}`}
-                                                                </Text>
-                                                            )}
-                                                            <Text color="gray.400" fontSize="sm">
-                                                                Level {character.level} • {isOnCurrentMap ? 'On Map' : 'Not on Map'}
-                                                            </Text>
-                                                        </Box>
-                                                        {currentMap && (
-                                                            <Box>
-                                                                {isOnCurrentMap ? (
-                                                                    <Button
-                                                                        size="sm"
-                                                                        colorScheme="red"
-                                                                        variant="outline"
-                                                                        onClick={() => removeCharacterFromMap(character._id)}
-                                                                    >
-                                                                        Remove
-                                                                    </Button>
-                                                                ) : (
-                                                                    <Button
-                                                                        size="sm"
-                                                                        colorScheme="orange"
-                                                                        onClick={() => addCharacterToMap(character._id)}
-                                                                    >
-                                                                        Add to Map
-                                                                    </Button>
-                                                                )}
-                                                            </Box>
-                                                        )}
-                                                    </HStack>
-                                                </CardBody>
-                                            </Card>
-                                            );
-                                        })
-                                    ) : (
-                                        <Card bg="gray.700" borderColor="orange.400" borderWidth="2px" borderStyle="dashed">
-                                            <CardBody py={6}>
-                                                <VStack spacing={3}>
-                                                    <Text fontSize="3xl" color="orange.400">
-                                                        🎭
-                                                    </Text>
-                                                    <Text color="orange.400" fontWeight="bold" textAlign="center">
-                                                        No Characters Yet
-                                                    </Text>
-                                                    <Text color="gray.300" fontSize="sm" textAlign="center" lineHeight="1.5">
-                                                        Add your character to the map by dragging an image file from your computer onto the center area of the game canvas
-                                                    </Text>
-                                                    <Box bg="gray.600" px={3} py={2} borderRadius="md" w="full">
-                                                        <Text color="gray.200" fontSize="xs" fontWeight="medium" mb={1}>
-                                                            Quick Tips:
-                                                        </Text>
-                                                        <Text color="gray.400" fontSize="xs" mb={1}>
-                                                            • Drop in center area → Character token
-                                                        </Text>
-                                                        <Text color="gray.400" fontSize="xs" mb={1}>
-                                                            • Drop near edges → Background image
-                                                        </Text>
-                                                        <Text color="gray.400" fontSize="xs">
-                                                            • Supports JPG, PNG, and GIF files
-                                                        </Text>
-                                                    </Box>
-                                                </VStack>
-                                            </CardBody>
-                                        </Card>
-                                    )}
-                                    </VStack>
-                                )}
-                            </Box>
+                            {/* Character Sidebar */}
+                            {currentMap && (
+                                <CharacterSidebar
+                                    characters={campaignCharacters}
+                                    currentMap={currentMap}
+                                    editingToken={editingToken}
+                                    editingName={editingName}
+                                    onEditingTokenChange={startEditingTokenName}
+                                    onEditingNameChange={setEditingName}
+                                    onSaveTokenName={saveTokenName}
+                                    onCancelEditingTokenName={cancelEditingTokenName}
+                                    onCharacterImageClick={handleCharacterImageClick}
+                                    onAddCharacterToMap={addCharacterToMap}
+                                    onRemoveCharacterFromMap={removeCharacterFromMap}
+                                    isCollapsed={isCharacterSectionCollapsed}
+                                    onCollapseToggle={() => setIsCharacterSectionCollapsed(!isCharacterSectionCollapsed)}
+                                />
+                            )}
 
-
-                            {/* Zoom Controls & Status */}
+                            {/* Zoom Controls */}
                             <Box>
                                 <Text fontSize="sm" color="gray.400" mb={2}>
                                     Zoom Level: {Math.round(viewport.zoom * 100)}%
@@ -2595,7 +1807,7 @@ const Play = () => {
                                 <HStack spacing={2}>
                                     <Button
                                         size="sm"
-                                        onClick={() => setViewport(prev => ({ ...prev, zoom: Math.max(prev.minZoom, prev.zoom * 0.8) }))}
+                                        onClick={zoomOut}
                                         disabled={viewport.zoom <= viewport.minZoom}
                                         variant="outline"
                                         colorScheme="orange"
@@ -2604,7 +1816,7 @@ const Play = () => {
                                     </Button>
                                     <Button
                                         size="sm"
-                                        onClick={() => setViewport({ zoom: 1, offsetX: 0, offsetY: 0, minZoom: 0.25, maxZoom: 4 })}
+                                        onClick={resetCamera}
                                         variant="outline"
                                         colorScheme="orange"
                                     >
@@ -2612,7 +1824,7 @@ const Play = () => {
                                     </Button>
                                     <Button
                                         size="sm"
-                                        onClick={() => setViewport(prev => ({ ...prev, zoom: Math.min(prev.maxZoom, prev.zoom * 1.25) }))}
+                                        onClick={zoomIn}
                                         disabled={viewport.zoom >= viewport.maxZoom}
                                         variant="outline"
                                         colorScheme="orange"
@@ -2626,8 +1838,8 @@ const Play = () => {
                             <Box>
                                 <Text fontSize="sm" color="gray.400">
                                     Connection Status: 
-                                    <Text as="span" color={isConnected ? 'green.400' : 'red.400'} ml={2}>
-                                        {isConnected ? 'Connected' : 'Disconnected'}
+                                    <Text as="span" color={socket.connected ? 'green.400' : 'red.400'} ml={2}>
+                                        {socket.connected ? 'Connected' : 'Disconnected'}
                                     </Text>
                                 </Text>
                             </Box>
