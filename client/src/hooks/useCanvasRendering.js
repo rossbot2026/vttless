@@ -102,7 +102,6 @@ export const useCanvasRendering = (canvasRef, gameState, viewport, background, g
             console.log('🎨 [useCanvasRendering] No background.image to draw. Background state:', currentBackground);
         }
         
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         drawGrid(ctx);
         
         // Draw tokens
@@ -120,7 +119,7 @@ export const useCanvasRendering = (canvasRef, gameState, viewport, background, g
         
         // Restore transformation
         ctx.restore();
-    }, [gameState, canvasRef]);
+    }, [gameState, canvasRef]); // eslint-disable-line react-hooks/exhaustive-deps
 
     /**
      * Render with selected token UI (name label, resize handles)
@@ -234,7 +233,6 @@ export const useCanvasRendering = (canvasRef, gameState, viewport, background, g
     // Animation loop - only depends on gameState (which includes background)
     // This ensures the RAF loop stays continuous even when viewport changes
     // renderGame is intentionally excluded to prevent animation loop restarts on viewport changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         let animationId;
         
@@ -250,7 +248,7 @@ export const useCanvasRendering = (canvasRef, gameState, viewport, background, g
                 cancelAnimationFrame(animationId);
             }
         };
-    }, [gameState]);
+    }, [gameState]); // eslint-disable-line react-hooks/exhaustive-deps
 
     return { renderGame, renderSelectedTokenUI, drawGrid };
 };
