@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 /**
  * useCanvasRendering Hook
@@ -6,18 +6,40 @@ import { useCallback, useEffect } from 'react';
  * Provides render functions and handles canvas animation frames
  */
 export const useCanvasRendering = (canvasRef, gameState, viewport, background, gridSettings) => {
+    // Refs to store current values without causing re-renders or loop restarts
+    const viewportRef = useRef(viewport);
+    const backgroundRef = useRef(background);
+    const gridSettingsRef = useRef(gridSettings);
+    
+    // Update refs whenever they change (but don't trigger animation loop)
+    useEffect(() => {
+        viewportRef.current = viewport;
+    }, [viewport]);
+    
+    useEffect(() => {
+        backgroundRef.current = background;
+    }, [background]);
+    
+    useEffect(() => {
+        gridSettingsRef.current = gridSettings;
+    }, [gridSettings]);
+
     /**
      * Draw grid on canvas
      */
     const drawGrid = useCallback((ctx) => {
-        // Skip grid drawing if grid is not visible or zoomed out too far
-        if (!gridSettings.visible || viewport.zoom < 0.5) return;
+        // Read from ref to get current values without dependency
+        const currentViewport = viewportRef.current;
+        const currentGridSettings = gridSettingsRef.current;
         
-        const gridSize = gridSettings.gridSize;
+        // Skip grid drawing if grid is not visible or zoomed out too far
+        if (!currentGridSettings.visible || currentViewport.zoom < 0.5) return;
+        
+        const gridSize = currentGridSettings.gridSize;
         const { width, height } = gameState.mapDimensions;
         
-        ctx.strokeStyle = gridSettings.color || '#ccc';
-        ctx.lineWidth = Math.max(0.5 / viewport.zoom, 0.1);
+        ctx.strokeStyle = currentGridSettings.color || '#ccc';
+        ctx.lineWidth = Math.max(0.5 / currentViewport.zoom, 0.1);
 
         // Draw vertical lines
         for (let x = 0; x <= width; x += gridSize) {
@@ -34,47 +56,53 @@ export const useCanvasRendering = (canvasRef, gameState, viewport, background, g
             ctx.lineTo(width, y);
             ctx.stroke();
         }
-    }, [gridSettings, gameState.mapDimensions, viewport.zoom]);
+    }, [gameState.mapDimensions]);
 
     /**
      * Main render function for the game canvas
+     * Only depends on gameState (which includes tokens and map dimensions)
+     * Reads viewport and background from refs to avoid restarting animation loop
+     * drawGrid is intentionally not in dependencies because it's called inline
      */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     const renderGame = useCallback(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
         const ctx = canvas.getContext('2d');
+        const currentViewport = viewportRef.current;
+        const currentBackground = backgroundRef.current;
         
         // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
         // Apply zoom and pan transformation
         ctx.save();
-        ctx.translate(viewport.offsetX, viewport.offsetY);
-        ctx.scale(viewport.zoom, viewport.zoom);
+        ctx.translate(currentViewport.offsetX, currentViewport.offsetY);
+        ctx.scale(currentViewport.zoom, currentViewport.zoom);
         
         // Draw background if exists
-        if (background.image) {
+        if (currentBackground.image) {
             console.log('🎨 [useCanvasRendering] Drawing background:');
-            console.log('  - image:', background.image);
-            console.log('  - position:', { x: background.x, y: background.y });
+            console.log('  - image:', currentBackground.image);
+            console.log('  - position:', { x: currentBackground.x, y: currentBackground.y });
             console.log('  - map dimensions:', gameState.mapDimensions);
-            console.log('  - image natural size:', { width: background.image.naturalWidth, height: background.image.naturalHeight });
+            console.log('  - image natural size:', { width: currentBackground.image.naturalWidth, height: currentBackground.image.naturalHeight });
             ctx.save();
             ctx.globalAlpha = 0.5; // Optional: make grid visible through background
             ctx.drawImage(
-                background.image,
-                background.x,
-                background.y,
+                currentBackground.image,
+                currentBackground.x,
+                currentBackground.y,
                 gameState.mapDimensions.width,
                 gameState.mapDimensions.height
             );
             ctx.restore();
         } else {
-            console.log('🎨 [useCanvasRendering] No background.image to draw. Background state:', background);
+            console.log('🎨 [useCanvasRendering] No background.image to draw. Background state:', currentBackground);
         }
         
-        // Draw grid
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         drawGrid(ctx);
         
         // Draw tokens
@@ -92,20 +120,23 @@ export const useCanvasRendering = (canvasRef, gameState, viewport, background, g
         
         // Restore transformation
         ctx.restore();
-    }, [canvasRef, gameState, viewport, background, drawGrid]);
+    }, [gameState, canvasRef]);
 
     /**
      * Render with selected token UI (name label, resize handles)
      * This is separated so it can be called with additional parameters
+     * Reads viewport from ref to avoid triggering animation loop restarts
      */
     const renderSelectedTokenUI = useCallback((selectedToken, userId, resizeState, editingToken, editingName) => {
         const canvas = canvasRef.current;
         if (!canvas || !selectedToken) return;
 
         const ctx = canvas.getContext('2d');
+        const currentViewport = viewportRef.current;
+        
         ctx.save();
-        ctx.translate(viewport.offsetX, viewport.offsetY);
-        ctx.scale(viewport.zoom, viewport.zoom);
+        ctx.translate(currentViewport.offsetX, currentViewport.offsetY);
+        ctx.scale(currentViewport.zoom, currentViewport.zoom);
 
         // Get the current token data from the tokens array (has updated position)
         const currentToken = gameState.tokens.find(token => token.id === selectedToken.id);
@@ -118,18 +149,18 @@ export const useCanvasRendering = (canvasRef, gameState, viewport, background, g
         
             // Set up text styling
             ctx.save();
-            ctx.font = `${Math.max(12 / viewport.zoom, 8)}px Arial`;
+            ctx.font = `${Math.max(12 / currentViewport.zoom, 8)}px Arial`;
             ctx.fillStyle = '#ffffff';
             ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 2 / viewport.zoom;
+            ctx.lineWidth = 2 / currentViewport.zoom;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
             
             // Draw text background
             const textMetrics = ctx.measureText(tokenName);
             const textWidth = textMetrics.width;
-            const textHeight = Math.max(12 / viewport.zoom, 8);
-            const padding = 4 / viewport.zoom;
+            const textHeight = Math.max(12 / currentViewport.zoom, 8);
+            const padding = 4 / currentViewport.zoom;
             
             ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
             ctx.fillRect(
@@ -150,7 +181,7 @@ export const useCanvasRendering = (canvasRef, gameState, viewport, background, g
             const tokenOwnerId = currentToken?.ownerId?._id || currentToken?.ownerId;
             if (tokenOwnerId === userId) {
                 ctx.save();
-                const handleSize = 8 / viewport.zoom;
+                const handleSize = 8 / currentViewport.zoom;
                 const tokenRight = currentToken.x + currentToken.width * gameState.scale;
                 const tokenBottom = currentToken.y + currentToken.height * gameState.scale;
                 const tokenCenterX = currentToken.x + (currentToken.width * gameState.scale) / 2;
@@ -159,7 +190,7 @@ export const useCanvasRendering = (canvasRef, gameState, viewport, background, g
                 // Draw resize handles
                 ctx.fillStyle = '#4299E1'; // Blue color
                 ctx.strokeStyle = '#FFFFFF';
-                ctx.lineWidth = 1 / viewport.zoom;
+                ctx.lineWidth = 1 / currentViewport.zoom;
 
                 // Corner handles
                 const corners = [
@@ -198,9 +229,12 @@ export const useCanvasRendering = (canvasRef, gameState, viewport, background, g
         }
         
         ctx.restore();
-    }, [canvasRef, gameState, viewport]);
+    }, [canvasRef, gameState]);
 
-    // Animation loop - optimized with RAF
+    // Animation loop - only depends on gameState (which includes background)
+    // This ensures the RAF loop stays continuous even when viewport changes
+    // renderGame is intentionally excluded to prevent animation loop restarts on viewport changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         let animationId;
         
@@ -216,7 +250,7 @@ export const useCanvasRendering = (canvasRef, gameState, viewport, background, g
                 cancelAnimationFrame(animationId);
             }
         };
-    }, [renderGame]);
+    }, [gameState]);
 
     return { renderGame, renderSelectedTokenUI, drawGrid };
 };

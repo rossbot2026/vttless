@@ -835,18 +835,9 @@ const Play = () => {
                     isDragging: false
                 }));
             } else if (background.image && isGM) {
-                setBackground(prev => ({
-                    ...prev,
-                    isDragging: true,
-                    dragStart: { 
-                        x: offsetX, 
-                        y: offsetY 
-                    },
-                    startPosition: {
-                        x: prev.x,
-                        y: prev.y
-                    }
-                }));
+                console.log('🖼️ [handleMouseDown] Starting background drag at screen pos:', { offsetX, offsetY });
+                console.log('🖼️ [handleMouseDown] Current background position:', { x: background.x, y: background.y });
+                setBackgroundDragging(true, { x: offsetX, y: offsetY }, { x: background.x, y: background.y });
                 markInteractionStart('background');
             }
         }
@@ -961,11 +952,8 @@ const Play = () => {
             const newX = background.startPosition.x + deltaX;
             const newY = background.startPosition.y + deltaY;
             
-            setBackground(prev => ({
-                ...prev,
-                x: newX,
-                y: newY
-            }));
+            console.log('🖼️ [handleMouseMove] Dragging background:', { deltaX, deltaY, newX, newY });
+            updateBackgroundPosition(newX, newY);
 
             throttledBackgroundUpdate({
                 x: newX,
@@ -1077,10 +1065,8 @@ const Play = () => {
             ...prev,
             isDragging: false
         }));
-        setBackground(prev => ({
-            ...prev,
-            isDragging: false
-        }));
+        console.log('🖼️ [handleMouseUp] Ending background drag');
+        setBackgroundDragging(false);
         setResizeState({
             isResizing: false,
             resizeHandle: null,
