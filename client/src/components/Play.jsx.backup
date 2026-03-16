@@ -106,7 +106,7 @@ const Play = () => {
         }
     };
 
-    const setGridSettings = (updates) => {
+    const setGridSettingsState = (updates) => {
         if (typeof updates === 'function') {
             const newGridSettings = updates(gridSettings);
             updateGrid(newGridSettings);
@@ -333,15 +333,12 @@ const Play = () => {
         const allTokens = [...loadedLegacyTokens, ...validCharacterInstances];
 
         // Update grid settings from map data
-        dispatch({
-            type: 'UPDATE_GRID',
-            payload: {
-                gridWidth: mapData.gridWidth || 20,
-                gridHeight: mapData.gridHeight || 20,
-                gridSize: mapData.gridSettings?.size || 40,
-                visible: mapData.gridSettings?.visible !== false,
-                color: mapData.gridSettings?.color || '#ccc'
-            }
+        setGridSettings({
+            gridWidth: mapData.gridWidth || 20,
+            gridHeight: mapData.gridHeight || 20,
+            gridSize: mapData.gridSettings?.size || 40,
+            visible: mapData.gridSettings?.visible !== false,
+            color: mapData.gridSettings?.color || '#ccc'
         });
 
         setGameState(prev => ({
@@ -1297,7 +1294,7 @@ const Play = () => {
 
     const handleGridSettingsUpdate = async (newSettings) => {
         try {
-            dispatch({ type: 'UPDATE_GRID', payload: newSettings });
+            setGridSettings(newSettings);
             
             const newMapDimensions = {
                 width: newSettings.gridWidth * newSettings.gridSize,
