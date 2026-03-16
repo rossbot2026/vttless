@@ -3,9 +3,9 @@ import { useCallback, useEffect } from 'react';
 /**
  * useGameCamera Hook
  * Handles zoom, pan, and camera/viewport transformations
- * Provides screen-to-world coordinate conversion and zoom controls
+ * Uses semantic dispatchers (updateZoom, updatePan) instead of setState
  */
-export const useGameCamera = (viewport, setViewport, canvasRef) => {
+export const useGameCamera = (viewport, updateZoom, updatePan, canvasRef) => {
     /**
      * Convert screen coordinates to world coordinates
      */
@@ -31,25 +31,20 @@ export const useGameCamera = (viewport, setViewport, canvasRef) => {
         // Smaller zoom delta for smoother zoom
         const zoomDelta = e.deltaY > 0 ? 0.95 : 1.05;
         
-        setViewport(prev => {
-            const newZoom = Math.max(prev.minZoom, Math.min(prev.maxZoom, prev.zoom * zoomDelta));
-            
-            // Only update if zoom actually changed
-            if (newZoom === prev.zoom) return prev;
+        const newZoom = Math.max(viewport.minZoom, Math.min(viewport.maxZoom, viewport.zoom * zoomDelta));
+        
+        // Only update if zoom actually changed
+        if (newZoom !== viewport.zoom) {
+            updateZoom(newZoom);
             
             // Calculate new offset to zoom towards mouse position
-            const zoomRatio = newZoom / prev.zoom;
-            const newOffsetX = mouseX - (mouseX - prev.offsetX) * zoomRatio;
-            const newOffsetY = mouseY - (mouseY - prev.offsetY) * zoomRatio;
+            const zoomRatio = newZoom / viewport.zoom;
+            const newOffsetX = mouseX - (mouseX - viewport.offsetX) * zoomRatio;
+            const newOffsetY = mouseY - (mouseY - viewport.offsetY) * zoomRatio;
             
-            return {
-                ...prev,
-                zoom: newZoom,
-                offsetX: newOffsetX,
-                offsetY: newOffsetY
-            };
-        });
-    }, [setViewport, canvasRef]);
+            updatePan(newOffsetX, newOffsetY);
+        }
+    }, [viewport, updateZoom, updatePan, canvasRef]);
 
     /**
      * Add wheel event listener
@@ -69,40 +64,39 @@ export const useGameCamera = (viewport, setViewport, canvasRef) => {
      * Reset zoom and pan to default state
      */
     const resetCamera = useCallback(() => {
-        setViewport({
-            zoom: 1,
-            offsetX: 0,
-            offsetY: 0,
-            minZoom: 0.25,
-            maxZoom: 4
-        });
-    }, [setViewport]);
+        updateZoom(1);
+        updatePan(0, 0);
+    }, [updateZoom, updatePan]);
 
     /**
      * Zoom in
      */
     const zoomIn = useCallback(() => {
-        setViewport(prev => ({
-            ...prev,
-            zoom: Math.min(prev.maxZoom, prev.zoom * 1.25)
-        }));
-    }, [setViewport]);
+        const newZoom = Math.min(viewport.maxZoom, viewport.zoom * 1.25);
+        updateZoom(newZoom);
+    }, [viewport.maxZoom, viewport.zoom, updateZoom]);
 
     /**
      * Zoom out
      */
     const zoomOut = useCallback(() => {
-        setViewport(prev => ({
-            ...prev,
-            zoom: Math.max(prev.minZoom, prev.zoom * 0.8)
-        }));
-    }, [setViewport]);
+        const newZoom = Math.max(viewport.minZoom, viewport.zoom * 0.8);
+        updateZoom(newZoom);
+    }, [viewport.minZoom, viewport.zoom, updateZoom]);
+
+    /**
+     * Pan camera
+     */
+    const panCamera = useCallback((deltaX, deltaY) => {
+        updatePan(viewport.offsetX + deltaX, viewport.offsetY + deltaY);
+    }, [viewport.offsetX, viewport.offsetY, updatePan]);
 
     return {
         screenToWorld,
-        resetCamera,
         zoomIn,
         zoomOut,
+        resetCamera,
+        panCamera,
         handleWheel
     };
 };
