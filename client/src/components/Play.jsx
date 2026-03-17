@@ -371,6 +371,126 @@ const Play = () => {
 
     // FIX: Ensure dragging stops even if mouse leaves the window
     // Handle window-level mouseup to catch cases where user drags outside canvas
+    // Define handleMouseUp before it's used in useEffect
+    const handleMouseUp = useCallback(async () => {
+        if (resizeState.isResizing && gameState.selectedToken && currentMap?._id) {
+            try {
+                const currentToken = gameState.tokens.find(token => token.id === gameState.selectedToken);
+                if (currentToken) {
+                    if (currentToken.isCharacterInstance) {
+                        await api.patch(`/characters/${currentToken.characterId}/position/${currentMap._id}`, {
+                            x: currentToken.x,
+                            y: currentToken.y,
+                            width: currentToken.width,
+                            height: currentToken.height
+                        });
+                    } else {
+                        await api.patch(`/maps/${currentMap._id}/tokens/${gameState.selectedToken}`, {
+                            x: currentToken.x,
+                            y: currentToken.y,
+                            width: currentToken.width,
+                            height: currentToken.height
+                        });
+                    }
+                    
+                    socket.emit('tokenUpdate', {
+                        campaignId: campaignId,
+                        tokenId: gameState.selectedToken,
+                        x: currentToken.x,
+                        y: currentToken.y,
+                        width: currentToken.width,
+                        height: currentToken.height,
+                        playerId: user.user.id
+                    });
+                }
+            } catch (error) {
+                toast({
+                    title: "Warning",
+                    description: "Token size may not be saved",
+                    status: "warning"
+                });
+            }
+        }
+
+        if (gameState.isDragging && gameState.selectedToken && currentMap?._id) {
+            try {
+                const currentToken = gameState.tokens.find(token => token.id === gameState.selectedToken);
+                if (currentToken) {
+                    console.log('📍 [handleMouseMove] Saving token position:', {
+                        tokenId: currentToken.id,
+                        characterId: currentToken.characterId,
+                        x: currentToken.x,
+                        y: currentToken.y,
+                        isCharacterInstance: currentToken.isCharacterInstance
+                    });
+                    if (currentToken.isCharacterInstance) {
+                        await api.patch(`/characters/${currentToken.characterId}/position/${currentMap._id}`, {
+                            x: currentToken.x,
+                            y: currentToken.y
+                        });
+                    } else {
+                        await api.patch(`/maps/${currentMap._id}/tokens/${gameState.selectedToken}`, {
+                            x: currentToken.x,
+                            y: currentToken.y
+                        });
+                    }
+                }
+            } catch (error) {
+                toast({
+                    title: "Warning",
+                    description: "Token position may not be saved",
+                    status: "warning"
+                });
+            }
+        }
+
+        if (background.isDragging && currentMap?._id && currentMap.backgroundImage?.assetId) {
+            try {
+                await api.patch(`/maps/${currentMap._id}`, {
+                    backgroundImage: {
+                        assetId: currentMap.backgroundImage.assetId,
+                        position: { 
+                            x: background.x, 
+                            y: background.y 
+                        }
+                    }
+                });
+            } catch (error) {
+                toast({
+                    title: "Warning",
+                    description: "Background position may not be saved",
+                    status: "warning"
+                });
+            }
+        }
+
+        if (gameState.isDragging && gameState.selectedToken) {
+            const currentToken = gameState.tokens.find(token => token.id === gameState.selectedToken);
+            if (currentToken) {
+                debouncedTokenMoveEnd({
+                    campaignId: campaignId,
+                    tokenId: gameState.selectedToken,
+                    x: currentToken.x,
+                    y: currentToken.y,
+                    playerId: user.user.id
+                });
+            }
+        }
+
+        dispatch({ type: 'SET_DRAG_STATE', payload: { isDragging: false, isResizing: false } });
+        console.log('🖼️ [handleMouseUp] Ending background drag');
+        setBackgroundDragging(false);
+        setResizeState({
+            isResizing: false,
+            resizeHandle: null,
+            startSize: { width: 0, height: 0 },
+            startPos: { x: 0, y: 0 },
+            startMouse: { x: 0, y: 0 }
+        });
+
+        markInteractionEnd();
+    }, [resizeState.isResizing, gameState.selectedToken, currentMap, campaignId, gameState.isDragging, background.isDragging, background.x, background.y, socket, user, debouncedTokenMoveEnd, dispatch, setBackgroundDragging, markInteractionEnd]);
+
     useEffect(() => {
         const handleWindowMouseUp = () => {
             if (gameState.isDragging || background.isDragging) {
@@ -921,125 +1041,6 @@ const Play = () => {
                 playerId: user.user.id
             });
         }
-    };
-
-    const handleMouseUp = async () => {
-        if (resizeState.isResizing && gameState.selectedToken && currentMap?._id) {
-            try {
-                const currentToken = gameState.tokens.find(token => token.id === gameState.selectedToken);
-                if (currentToken) {
-                    if (currentToken.isCharacterInstance) {
-                        await api.patch(`/characters/${currentToken.characterId}/position/${currentMap._id}`, {
-                            x: currentToken.x,
-                            y: currentToken.y,
-                            width: currentToken.width,
-                            height: currentToken.height
-                        });
-                    } else {
-                        await api.patch(`/maps/${currentMap._id}/tokens/${gameState.selectedToken}`, {
-                            x: currentToken.x,
-                            y: currentToken.y,
-                            width: currentToken.width,
-                            height: currentToken.height
-                        });
-                    }
-                    
-                    socket.emit('tokenUpdate', {
-                        campaignId: campaignId,
-                        tokenId: gameState.selectedToken,
-                        x: currentToken.x,
-                        y: currentToken.y,
-                        width: currentToken.width,
-                        height: currentToken.height,
-                        playerId: user.user.id
-                    });
-                }
-            } catch (error) {
-                toast({
-                    title: "Warning",
-                    description: "Token size may not be saved",
-                    status: "warning"
-                });
-            }
-        }
-
-        if (gameState.isDragging && gameState.selectedToken && currentMap?._id) {
-            try {
-                const currentToken = gameState.tokens.find(token => token.id === gameState.selectedToken);
-                if (currentToken) {
-                    console.log('📍 [handleMouseMove] Saving token position:', {
-                        tokenId: currentToken.id,
-                        characterId: currentToken.characterId,
-                        x: currentToken.x,
-                        y: currentToken.y,
-                        isCharacterInstance: currentToken.isCharacterInstance
-                    });
-                    if (currentToken.isCharacterInstance) {
-                        await api.patch(`/characters/${currentToken.characterId}/position/${currentMap._id}`, {
-                            x: currentToken.x,
-                            y: currentToken.y
-                        });
-                    } else {
-                        await api.patch(`/maps/${currentMap._id}/tokens/${gameState.selectedToken}`, {
-                            x: currentToken.x,
-                            y: currentToken.y
-                        });
-                    }
-                }
-            } catch (error) {
-                toast({
-                    title: "Warning",
-                    description: "Token position may not be saved",
-                    status: "warning"
-                });
-            }
-        }
-
-        if (background.isDragging && currentMap?._id && currentMap.backgroundImage?.assetId) {
-            try {
-                await api.patch(`/maps/${currentMap._id}`, {
-                    backgroundImage: {
-                        assetId: currentMap.backgroundImage.assetId,
-                        position: { 
-                            x: background.x, 
-                            y: background.y 
-                        }
-                    }
-                });
-            } catch (error) {
-                toast({
-                    title: "Warning",
-                    description: "Background position may not be saved",
-                    status: "warning"
-                });
-            }
-        }
-
-        if (gameState.isDragging && gameState.selectedToken) {
-            const currentToken = gameState.tokens.find(token => token.id === gameState.selectedToken);
-            if (currentToken) {
-                debouncedTokenMoveEnd({
-                    campaignId: campaignId,
-                    tokenId: gameState.selectedToken,
-                    x: currentToken.x,
-                    y: currentToken.y,
-                    playerId: user.user.id
-                });
-            }
-        }
-
-        dispatch({ type: 'SET_DRAG_STATE', payload: { isDragging: false, isResizing: false } });
-        console.log('🖼️ [handleMouseUp] Ending background drag');
-        setBackgroundDragging(false);
-        setResizeState({
-            isResizing: false,
-            resizeHandle: null,
-            startSize: { width: 0, height: 0 },
-            startPos: { x: 0, y: 0 },
-            startMouse: { x: 0, y: 0 }
-        });
-
-        markInteractionEnd();
     };
 
     // ====== RENDERING ======
