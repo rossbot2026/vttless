@@ -87,33 +87,8 @@ const Play = () => {
     const dragState = state.ui.dragState;
     const gridSettings = state.grid;
 
-    // For backward compatibility, provide setters that dispatch actions
-    const setGameState = (updates) => {
-        if (typeof updates === 'function') {
-            const newState = updates(state);
-            gameStateHook.setGameState(newState);
-        } else {
-            gameStateHook.setGameState(updates);
-        }
-    };
-
-    const setViewport = (updates) => {
-        if (typeof updates === 'function') {
-            const newViewport = updates(viewport);
-            gameStateHook.setViewport(newViewport);
-        } else {
-            gameStateHook.setViewport(updates);
-        }
-    };
-
-    const setGridSettings = (updates) => {
-        if (typeof updates === 'function') {
-            const newGridSettings = updates(gridSettings);
-            updateGrid(newGridSettings);
-        } else {
-            updateGrid(updates);
-        }
-    };
+    // All state updates now go through semantic dispatchers
+    // (moveToken, resizeToken, selectToken, etc.)
 
     // For local component state that doesn't go in global context
     const [currentMap, setCurrentMap] = useState(null);
@@ -138,7 +113,7 @@ const Play = () => {
     } = gridSettingsHook;
 
     // Initialize camera hook with viewport dispatch functions
-    const cameraHook = useGameCamera(viewport, setViewport, canvasRef);
+    const cameraHook = useGameCamera(viewport, updateZoom, updatePan, canvasRef);
     const {
         screenToWorld,
         resetCamera,
