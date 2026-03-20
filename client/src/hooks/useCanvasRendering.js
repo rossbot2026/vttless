@@ -83,11 +83,10 @@ export const useCanvasRendering = (canvasRef, gameState, viewport, background, g
         
         // Draw background if exists
         if (currentBackground.image) {
-            console.log('🎨 [useCanvasRendering] Drawing background:');
-            console.log('  - image:', currentBackground.image);
-            console.log('  - position:', { x: currentBackground.x, y: currentBackground.y });
-            console.log('  - map dimensions:', gameState.mapDimensions);
-            console.log('  - image natural size:', { width: currentBackground.image.naturalWidth, height: currentBackground.image.naturalHeight });
+
+
+
+
             ctx.save();
             ctx.globalAlpha = 0.5; // Optional: make grid visible through background
             ctx.drawImage(
@@ -99,7 +98,6 @@ export const useCanvasRendering = (canvasRef, gameState, viewport, background, g
             );
             ctx.restore();
         } else {
-            console.log('🎨 [useCanvasRendering] No background.image to draw. Background state:', currentBackground);
         }
         
         drawGrid(ctx);

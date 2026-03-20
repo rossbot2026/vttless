@@ -236,16 +236,12 @@ const Play = () => {
         // Load background image
         if (mapData.backgroundImage?.assetId) {
             try {
-                console.log('🖼️ [initializeGameState] Loading background, assetId:', mapData.backgroundImage.assetId);
                 const imageUrl = await loadAssetUrl(mapData.backgroundImage.assetId);
-                console.log('🖼️ [initializeGameState] Got imageUrl:', imageUrl);
                 const img = new Image();
                 img.onload = () => {
-                    console.log('🖼️ [initializeGameState] Image loaded, dimensions:', img.width, 'x', img.height);
-                    console.log('🖼️ [initializeGameState] Background position:', mapData.backgroundImage.position);
+
                     // CRITICAL FIX: setBackground expects (imageUrl, position, scale, image) not an object!
                     setBackground(imageUrl, mapData.backgroundImage.position, 1, img);
-                    console.log('🖼️ [initializeGameState] Called setBackground with correct signature');
                 };
                 img.onerror = () => {
                     console.error('🖼️ [initializeGameState] Image failed to load from:', imageUrl);
@@ -255,7 +251,6 @@ const Play = () => {
                 console.error('Error loading background image:', error);
             }
         } else {
-            console.log('🖼️ [initializeGameState] No background image in mapData');
         }
 
         // Load legacy tokens
@@ -347,7 +342,6 @@ const Play = () => {
     // Listen for character imports from D&D Beyond extension
     useEffect(() => {
         const handleCharacterImport = (event) => {
-            console.log('🎯 Character import detected from extension:', event.detail);
             if (campaign && user.user.id) {
                 loadCampaignCharacters();
                 loadCampaignAssets();
@@ -416,13 +410,6 @@ const Play = () => {
             try {
                 const currentToken = gameState.tokens.find(token => token.id === gameState.selectedToken);
                 if (currentToken) {
-                    console.log('📍 [handleMouseMove] Saving token position:', {
-                        tokenId: currentToken.id,
-                        characterId: currentToken.characterId,
-                        x: currentToken.x,
-                        y: currentToken.y,
-                        isCharacterInstance: currentToken.isCharacterInstance
-                    });
                     if (currentToken.isCharacterInstance) {
                         await api.patch(`/characters/${currentToken.characterId}/position/${currentMap._id}`, {
                             x: currentToken.x,
@@ -478,7 +465,6 @@ const Play = () => {
         }
 
         dispatch({ type: 'SET_DRAG_STATE', payload: { isDragging: false, isResizing: false } });
-        console.log('🖼️ [handleMouseUp] Ending background drag');
         setBackgroundDragging(false);
         setResizeState({
             isResizing: false,
@@ -494,7 +480,6 @@ const Play = () => {
     useEffect(() => {
         const handleWindowMouseUp = () => {
             if (gameState.isDragging || background.isDragging) {
-                console.log('🖼️ [Window mouseup] Ending drag - isDragging:', gameState.isDragging, ', background.isDragging:', background.isDragging);
                 handleMouseUp();
             }
         };
@@ -524,15 +509,11 @@ const Play = () => {
     const handleBackgroundUpdate = useCallback(async (data) => {
         if (data.backgroundImage?.assetId) {
             try {
-                console.log('🎨 [handleBackgroundUpdate] Received background update, assetId:', data.backgroundImage.assetId);
                 const imageUrl = await loadAssetUrl(data.backgroundImage.assetId);
-                console.log('🎨 [handleBackgroundUpdate] Got imageUrl:', imageUrl);
                 const img = new Image();
                 img.onload = () => {
-                    console.log('🎨 [handleBackgroundUpdate] Image loaded, dimensions:', img.width, 'x', img.height);
-                    console.log('🎨 [handleBackgroundUpdate] Setting background with position:', data.backgroundImage.position);
+
                     setBackground(imageUrl, data.backgroundImage.position, 1, img);
-                    console.log('🎨 [handleBackgroundUpdate] Background set successfully');
                 };
                 img.onerror = () => {
                     console.error('🎨 [handleBackgroundUpdate] Image failed to load from:', imageUrl);
@@ -542,7 +523,6 @@ const Play = () => {
                 console.error('Error loading background image:', error);
             }
         } else if (data.position) {
-            console.log('🎨 [handleBackgroundUpdate] Updating background position only:', data.position);
             updateBackgroundPosition(data.position.x, data.position.y);
         }
     }, [loadAssetUrl, setBackground, updateBackgroundPosition]);
@@ -658,7 +638,6 @@ const Play = () => {
             
             analysisResult = analysisResponse.data;
         } catch (analysisError) {
-            console.log('Analysis failed, continuing with upload:', analysisError);
         }
         
         const assetId = await uploadAsset(file, 'background', campaignId);
@@ -927,8 +906,7 @@ const Play = () => {
                 selectToken(null);
                 dispatch({ type: 'SET_DRAG_STATE', payload: { isDragging: false, isResizing: false } });
             } else if (background.image && isGM) {
-                console.log('🖼️ [handleMouseDown] Starting background drag at screen pos:', { offsetX, offsetY });
-                console.log('🖼️ [handleMouseDown] Current background position:', { x: background.x, y: background.y });
+
                 setBackgroundDragging(true, { x: offsetX, y: offsetY }, { x: background.x, y: background.y });
                 markInteractionStart('background');
             }
@@ -1031,8 +1009,6 @@ const Play = () => {
             const deltaY = (offsetY - background.dragStart.y) / viewport.zoom;
             const newX = background.startPosition.x + deltaX;
             const newY = background.startPosition.y + deltaY;
-            
-            console.log('🖼️ [handleMouseMove] Dragging background:', { deltaX, deltaY, newX, newY });
             updateBackgroundPosition(newX, newY);
 
             throttledBackgroundUpdate({
